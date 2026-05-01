@@ -32,15 +32,7 @@ from scorer import score_sections, DISCLAIMER
 # MCP application
 # ---------------------------------------------------------------------------
 
-mcp = FastMCP(
-    name="RiskLens",
-    version="1.0.0",
-    description=(
-        "Compares the two most recent 10-Q or 10-K filings for a US public company, "
-        "focusing on Risk Factors (Item 1A) and MD&A (Item 7). "
-        "Outputs are labeled as estimates. Coverage gaps are disclosed."
-    ),
-)
+mcp = FastMCP(name="RiskLens")
 
 TOOL_TIMEOUT = 55  # seconds — stay within 60s grant requirement
 
@@ -376,14 +368,6 @@ def _build_auth_middleware():
         return None
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
 if __name__ == "__main__":
-    middleware = _build_auth_middleware()
-    if middleware:
-        mcp.add_middleware(middleware)
-
-    print(f"[RiskLens] Starting MCP server (tool timeout: {TOOL_TIMEOUT}s)")
-    mcp.run()
+    port = int(os.environ.get("PORT", 8000))
+    mcp.run(host="0.0.0.0", port=port)
