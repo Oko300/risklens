@@ -1,4 +1,5 @@
-"""
+"""HEADERS = {
+    "User-Agent": "RiskLens/1.0 (300joh@gmail.com)" 
 fetcher.py — RiskLens EDGAR fetcher
 Resolves ticker → CIK → two most recent 10-Q or 10-K filings → raw HTML.
 Returns structured provenance at every step. Never fails silently.

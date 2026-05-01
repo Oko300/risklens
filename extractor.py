@@ -4,9 +4,15 @@ Extracts Risk Factors and MD&A from 10-Q / 10-K HTML.
 Tracks extraction method and confidence independently per section.
 Never fails silently: always returns raw-text fallback + failure flag.
 
-KEY FIX: 10-Q filings label MD&A as "Item 2", not "Item 7".
-         Item 7 is the 10-K label only.
-         form_type parameter selects the correct item number.
+KEY FIXES:
+1. 10-Q MD&A = Item 2 / 10-K MD&A = Item 7 (form_type aware)
+2. TOC entry detection: if collected text is too short, skip and find next match
+   (EDGAR iXBRL TOC has "Item 2. MD&A" entries right above "Item 3" — 
+    the extractor was stopping immediately after the TOC hit)
+3. Cross-reference guard: "See Item 3" inside running text does not stop collection
+   (only standalone bold headings stop collection)
+4. 10-K MD&A start patterns require "management" or "discussion" in heading —
+   prevents confusing "Item 7 — Reserved" or other short Item 7 entries
 """
 
 import re
@@ -19,6 +25,9 @@ from typing import Optional
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
+
+# Minimum chars for extracted text to be considered a real section (not a TOC hit)
+MIN_SECTION_CHARS = 500
 
 
 class ExtractionMethod(str, Enum):
@@ -75,9 +84,10 @@ class ExtractionResult:
 #   Item 1  Financial Stmts     Item 1   Business
 #   Item 1A Risk Factors        Item 1A  Risk Factors
 #   Item 1B Unresolved Staff    Item 1B  Unresolved Staff
-#   Item 2  MD&A          <--   Item 7   MD&A           <--
-#   Item 3  Quant/Qual          Item 7A  Quant/Qual
-#   Item 4  Controls            Item 8   Financial Stmts
+#   Item 2  MD&A          <--   Item 2   Properties  (NOT MD&A)
+#   Item 3  Quant/Qual          Item 7   MD&A         <--
+#   Item 4  Controls            Item 7A  Quant/Qual
+#                               Item 8   Financial Stmts
 
 def _build_specs(form_type: str) -> dict:
     risk_spec = {
@@ -101,16 +111,17 @@ def _build_specs(form_type: str) -> dict:
         mda_spec = {
             "item_label": "Item 2",
             "display":    "Management's Discussion and Analysis",
+            # Require "management" or "discussion" in the heading — prevents grabbing
+            # "Item 2 — Unregistered Sales" which also uses bold Item 2 style
             "start_patterns": [
                 r"item\s+2[\.\s\u2014\-\u2013]+management",
                 r"item\s+2[\.\s]+discussion",
-                r"item\s+2\b",
+                r"item\s+2[\.\s]+md",
             ],
             "end_patterns": [
                 r"item\s+3\b",
                 r"item\s+3[\.\s]+quantitative",
                 r"item\s+4\b",
-                r"item\s+4[\.\s]+controls",
             ],
             "next_items": ["item 3", "item 4"],
             "keywords": ["revenue", "operating", "liquidity", "results", "cash",
@@ -121,15 +132,17 @@ def _build_specs(form_type: str) -> dict:
         mda_spec = {
             "item_label": "Item 7",
             "display":    "Management's Discussion and Analysis",
+            # ONLY match Item 7 with "management" or "discussion" in heading.
+            # "item\s+7\b" alone would also match "Item 7A" or "Item 7 — Reserved"
             "start_patterns": [
                 r"item\s+7[\.\s\u2014\-\u2013]+management",
                 r"item\s+7[\.\s]+discussion",
-                r"item\s+7\b",
+                r"item\s+7[\.\s]+md",
             ],
             "end_patterns": [
                 r"item\s+7a\b",
                 r"item\s+8\b",
-                r"item\s+8[\.\s]+financial\s+statements",
+                r"item\s+8[\.\s]+financial",
             ],
             "next_items": ["item 7a", "item 8"],
             "keywords": ["revenue", "operating", "liquidity", "results", "cash",
@@ -218,7 +231,7 @@ def _extract_section(
 
 
 # ---------------------------------------------------------------------------
-# Strategies
+# Strategy 1: anchor / id
 # ---------------------------------------------------------------------------
 
 def _try_anchor_strategy(soup: BeautifulSoup, spec: dict) -> Optional[str]:
@@ -228,11 +241,15 @@ def _try_anchor_strategy(soup: BeautifulSoup, spec: dict) -> Optional[str]:
             val = re.sub(r"[\s\-_]", "", (tag.get(attr) or "").lower())
             if item_norm in val:
                 text = _collect_forward(tag, spec["next_items"])
-                if text and len(text) > 100:
+                if text and len(text) >= MIN_SECTION_CHARS:
                     return text
                 break
     return None
 
+
+# ---------------------------------------------------------------------------
+# Strategy 2: semantic heading tags (h1-h4, b, strong)
+# ---------------------------------------------------------------------------
 
 def _try_heading_strategy(soup: BeautifulSoup, spec: dict) -> Optional[str]:
     start_re = re.compile("|".join(spec["start_patterns"]), re.IGNORECASE)
@@ -240,16 +257,31 @@ def _try_heading_strategy(soup: BeautifulSoup, spec: dict) -> Optional[str]:
         for tag in soup.select(selector):
             if start_re.search(_norm(tag.get_text())) and not _looks_like_toc_entry(tag):
                 text = _collect_forward(tag, spec["next_items"])
-                if text:
+                # Skip if too short — likely a TOC hit, not the real section
+                if text and len(text) >= MIN_SECTION_CHARS:
                     return text
     return None
 
+
+# ---------------------------------------------------------------------------
+# Strategy 3: iXBRL bold div/span
+# ---------------------------------------------------------------------------
 
 _BOLD_STYLE_RE = re.compile(r"font-weight\s*:\s*(bold|700|800|900)", re.IGNORECASE)
 
 
 def _try_ixbrl_div_strategy(soup: BeautifulSoup, spec: dict) -> Optional[str]:
+    """
+    Modern EDGAR iXBRL filings use <div style="font-weight:bold"> for headings.
+
+    KEY FIX: EDGAR TOC contains bold Item headings followed immediately by the
+    next Item heading. We skip any match whose collected text is too short
+    (< MIN_SECTION_CHARS), which means we hit a TOC entry, and keep scanning
+    for the real section heading further down the document.
+    """
     start_re = re.compile("|".join(spec["start_patterns"]), re.IGNORECASE)
+    best_text = None
+
     for tag in soup.find_all(["div", "span", "p", "td"]):
         if not _BOLD_STYLE_RE.search(tag.get("style", "")):
             continue
@@ -257,11 +289,28 @@ def _try_ixbrl_div_strategy(soup: BeautifulSoup, spec: dict) -> Optional[str]:
             continue
         if _looks_like_toc_entry(tag):
             continue
-        text = _collect_forward(tag, spec["next_items"])
-        if text:
-            return text
-    return None
 
+        text = _collect_forward(tag, spec["next_items"])
+        if not text:
+            continue
+
+        if len(text) >= MIN_SECTION_CHARS:
+            # Good hit — real section content
+            return text
+
+        # Text too short — this was a TOC entry or stub heading.
+        # Keep the best short result as a fallback but keep scanning.
+        if best_text is None or len(text) > len(best_text):
+            best_text = text
+
+    # Return best short result only if nothing better was found
+    # (will fail _plausible check and fall through to next strategy)
+    return best_text
+
+
+# ---------------------------------------------------------------------------
+# Strategy 4: TOC link traversal
+# ---------------------------------------------------------------------------
 
 def _try_toc_strategy(soup: BeautifulSoup, spec: dict) -> Optional[str]:
     start_re  = re.compile("|".join(spec["start_patterns"]), re.IGNORECASE)
@@ -275,28 +324,58 @@ def _try_toc_strategy(soup: BeautifulSoup, spec: dict) -> Optional[str]:
     target = soup.find(id=target_id) or soup.find(attrs={"name": target_id})
     if not target:
         return None
-    return _collect_forward(target, spec["next_items"])
+    text = _collect_forward(target, spec["next_items"])
+    return text if text and len(text) >= MIN_SECTION_CHARS else None
 
+
+# ---------------------------------------------------------------------------
+# Strategy 5: plain text pattern match
+# ---------------------------------------------------------------------------
 
 def _try_pattern_strategy(full_text: str, spec: dict) -> Optional[str]:
     start_re = re.compile("|".join(spec["start_patterns"]), re.IGNORECASE)
     end_re   = re.compile("|".join(spec["end_patterns"]),   re.IGNORECASE)
-    m = start_re.search(full_text)
-    if not m:
-        return None
-    end_m = end_re.search(full_text, m.end())
-    if end_m:
-        return full_text[m.start():end_m.start()].strip()
-    return full_text[m.start(): m.start() + 80_000].strip()
+
+    # Find ALL occurrences of the start pattern and take the one with the most content
+    best_text = None
+    search_from = 0
+    while True:
+        m = start_re.search(full_text, search_from)
+        if not m:
+            break
+        end_m = end_re.search(full_text, m.end())
+        if end_m:
+            candidate = full_text[m.start():end_m.start()].strip()
+        else:
+            candidate = full_text[m.start(): m.start() + 80_000].strip()
+
+        if len(candidate) >= MIN_SECTION_CHARS:
+            if best_text is None or len(candidate) > len(best_text):
+                best_text = candidate
+            # Take the first substantial hit
+            break
+
+        search_from = m.end()
+
+    return best_text
 
 
 # ---------------------------------------------------------------------------
-# Forward collector
+# Shared forward text collector
 # ---------------------------------------------------------------------------
 
 def _collect_forward(
-    start_tag, end_items: list[str], max_chars: int = 120_000,
+    start_tag,
+    end_items: list[str],
+    max_chars: int = 150_000,
 ) -> Optional[str]:
+    """
+    Walk forward in the document from start_tag collecting text.
+    Stops when a STANDALONE section heading for a next-item is found.
+
+    Cross-reference guard: "See Item 3 below" inside running prose does NOT
+    stop collection — only standalone bold headings do.
+    """
     try:
         all_tags = list(start_tag.find_all_next(True))
     except Exception:
@@ -304,17 +383,22 @@ def _collect_forward(
 
     chunks = []
     total  = 0
+
     for tag in all_tags:
         if total >= max_chars:
             break
+
         tag_text = tag.get_text(separator=" ", strip=True) \
             if hasattr(tag, "get_text") else str(tag)
         tag_norm = _norm(tag_text)
-        if _looks_like_section_heading(tag):
+
+        # Only stop on STANDALONE heading elements — not inline text
+        if _looks_like_standalone_heading(tag):
             for end_item in end_items:
-                if end_item in tag_norm:
+                if tag_norm.startswith(end_item) or f"\n{end_item}" in tag_norm:
                     result = "\n".join(chunks).strip()
                     return result if result else None
+
         snippet = tag_text.strip()
         if snippet:
             chunks.append(snippet)
@@ -340,30 +424,49 @@ def _strip_boilerplate(soup: BeautifulSoup) -> None:
 
 
 def _plausible(text: str, spec: dict) -> bool:
-    if not text or len(text) < 80:
+    """Check that extracted text plausibly belongs to the target section."""
+    if not text or len(text) < 200:
         return False
     text_lower = text.lower()
     hits = sum(1 for kw in spec["keywords"] if kw in text_lower)
-    return hits >= (1 if len(text) < 500 else 2)
+    return hits >= 2
 
 
 def _looks_like_toc_entry(tag) -> bool:
+    """True if tag looks like a TOC line — short text ending with a page number."""
     text = tag.get_text(strip=True)
     return len(text) < 80 and bool(re.search(r"\d{1,3}\s*$", text))
 
 
-def _looks_like_section_heading(tag) -> bool:
+def _looks_like_standalone_heading(tag) -> bool:
+    """
+    True only for structural heading elements.
+    Inline <b> or <span> inside paragraphs are NOT standalone headings —
+    this prevents cross-references like "see Item 3 below" from stopping collection.
+    """
     if not hasattr(tag, "name"):
         return False
+    # Unambiguous heading tags
     if tag.name in ("h1", "h2", "h3", "h4"):
         return True
-    if tag.name in ("b", "strong"):
-        return len(tag.get_text(strip=True)) < 150
-    if tag.name in ("div", "span", "p", "td"):
+    # Bold div/span — only standalone if it's a direct child of body/section,
+    # not nested inside a paragraph. Check: parent is not a <p> or <td>.
+    if tag.name in ("div", "span"):
         if _BOLD_STYLE_RE.search(tag.get("style", "")):
-            return len(tag.get_text(strip=True)) < 150
-    if tag.name == "p":
-        return bool(tag.find(["b", "strong"]))
+            text = tag.get_text(strip=True)
+            parent = tag.parent
+            parent_name = getattr(parent, "name", "") if parent else ""
+            # Short bold div not inside a paragraph → standalone heading
+            if len(text) < 150 and parent_name not in ("p", "li", "span"):
+                return True
+    # Bold tags — only standalone if they ARE the paragraph (not inline in prose)
+    if tag.name in ("b", "strong"):
+        text = tag.get_text(strip=True)
+        parent = tag.parent
+        parent_name = getattr(parent, "name", "") if parent else ""
+        # If the bold is the entire paragraph, it's a heading
+        if parent_name == "p" and len(parent.get_text(strip=True)) == len(text):
+            return True
     return False
 
 

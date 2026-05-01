@@ -1,45 +1,49 @@
 {
-  "run_timestamp": "2026-04-30T20:06:16.891751+00:00",
+  "run_timestamp": "2026-05-01T18:41:38.889271+00:00",
   "form_type_tested": "10-Q",
   "total_tickers": 60,
   "total_attempted": 60,
-  "pipeline_success_count": 49,
-  "pipeline_success_rate": 0.8166666666666667,
-  "extraction_both_success": 44,
-  "extraction_success_rate": 0.7333333333333333,
-  "extraction_partial_success": 4,
-  "extraction_complete_failure": 1,
+  "pipeline_success_count": 57,
+  "pipeline_success_rate": 0.95,
+  "extraction_both_success": 47,
+  "extraction_success_rate": 0.7833333333333333,
+  "extraction_partial_success": 6,
+  "extraction_complete_failure": 4,
   "timeout_count": 0,
   "summary_notes": [
-    "Pipeline success rate: 81.7% (49/60)",
-    "Full extraction success: 73.3% (44/60)",
-    "Partial extraction (one section failed): 4",
-    "Complete extraction failure (raw fallback): 1",
+    "Pipeline success rate: 95.0% (57/60)",
+    "Full extraction success: 78.3% (47/60)",
+    "Partial extraction (one section failed): 6",
+    "Complete extraction failure (raw fallback): 4",
     "Timeouts: 0",
-    "Risk extraction methods: {'ixbrl_div': 39, 'raw_fallback': 4, 'toc_link': 1, 'pattern_match': 5}",
-    "MD&A extraction methods: {'ixbrl_div': 42, 'pattern_match': 4, 'toc_link': 1, 'raw_fallback': 2}",
-    "Failure reasons: {'CIK resolution failed: ReadTimeout: ': 1, 'CIK resolution failed: TimeoutError: Pipeline deadline reached before attempt 2 for https://www.sec.gov/files/company_tickers.json (0.3s remaining)': 1, 'CIK resolution failed: TimeoutError: No time remaining for CIK resolution': 1, 'older HTML: Pipeline timeout before HTML fetch': 4, 'older HTML: TimeoutError: Pipeline deadline reached before attempt 3 for https://www.sec.gov/Archives/edgar/data/796343/000079634325000107/adbe-20250829.htm (-2.4s remaining)': 1, 'Submissions fetch failed: ConnectError: [Errno 11002] getaddrinfo failed': 2, 'older HTML: TimeoutError: Pipeline deadline reached before attempt 2 for https://www.sec.gov/Archives/edgar/data/12927/000162828025047023/ba-20250930.htm (2.9s remaining)': 1}"
+    "Risk extraction methods: {'ixbrl_div': 41, 'pattern_match': 9, 'toc_link': 1, 'raw_fallback': 6}",
+    "MD&A extraction methods: {'pattern_match': 13, 'ixbrl_div': 35, 'raw_fallback': 8, 'toc_link': 1}",
+    "Failure reasons: {'older HTML: Pipeline timeout before HTML fetch': 1, 'older HTML: TimeoutError: Pipeline deadline reached before attempt 2 for https://www.sec.gov/Archives/edgar/data/200406/000020040625000209/jnj-20250928.htm (-34.1s remaining)': 1, 'older HTML: TimeoutError: Pipeline deadline reached before attempt 2 for https://www.sec.gov/Archives/edgar/data/829224/000082922426000011/sbux-20251228.htm (-3.1s remaining)': 1}"
   ],
   "results": [
     {
       "ticker": "AAPL",
       "form_type": "10-Q",
       "pipeline_success": true,
-      "newer_date": "2026-01-30",
-      "older_date": "2025-08-01",
+      "newer_date": "2026-05-01",
+      "older_date": "2026-01-30",
       "risk_extraction_method": "ixbrl_div",
       "risk_extraction_success": true,
       "mda_extraction_method": "ixbrl_div",
       "mda_extraction_success": true,
       "risk_magnitude": "major",
       "mda_magnitude": "major",
-      "overall_materiality": "moderate",
+      "overall_materiality": "critical",
       "top_signals": [
-        "acquisition [mda]"
+        "tariff [risk_factors]",
+        "DOJ [risk_factors]",
+        "fraud [risk_factors]",
+        "write-off [risk_factors]",
+        "regulatory action [risk_factors]"
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 30.33
+      "elapsed_seconds": 23.28
     },
     {
       "ticker": "ABBV",
@@ -63,25 +67,31 @@
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 81.2
+      "elapsed_seconds": 42.72
     },
     {
       "ticker": "ADBE",
       "form_type": "10-Q",
-      "pipeline_success": false,
+      "pipeline_success": true,
       "newer_date": "2026-03-25",
       "older_date": "2025-09-24",
-      "risk_extraction_method": null,
-      "risk_extraction_success": null,
-      "mda_extraction_method": null,
-      "mda_extraction_success": null,
-      "risk_magnitude": null,
-      "mda_magnitude": null,
-      "overall_materiality": null,
-      "top_signals": [],
+      "risk_extraction_method": "ixbrl_div",
+      "risk_extraction_success": true,
+      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_success": true,
+      "risk_magnitude": "major",
+      "mda_magnitude": "major",
+      "overall_materiality": "critical",
+      "top_signals": [
+        "data breach [risk_factors]",
+        "insolvency [risk_factors]",
+        "criminal [risk_factors]",
+        "class action [risk_factors]",
+        "default [mda]"
+      ],
       "known_gaps": [],
-      "failure_reason": "older HTML: TimeoutError: Pipeline deadline reached before attempt 3 for https://www.sec.gov/Archives/edgar/data/796343/000079634325000107/adbe-20250829.htm (-2.4s remaining)",
-      "elapsed_seconds": 92.37
+      "failure_reason": null,
+      "elapsed_seconds": 40.56
     },
     {
       "ticker": "AMD",
@@ -91,7 +101,7 @@
       "older_date": "2025-08-06",
       "risk_extraction_method": "ixbrl_div",
       "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_method": "pattern_match",
       "mda_extraction_success": true,
       "risk_magnitude": "moderate",
       "mda_magnitude": "major",
@@ -103,29 +113,31 @@
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 31.99
+      "elapsed_seconds": 37.86
     },
     {
       "ticker": "AMGN",
       "form_type": "10-Q",
       "pipeline_success": true,
-      "newer_date": "2025-11-05",
-      "older_date": "2025-08-06",
+      "newer_date": "2026-05-01",
+      "older_date": "2025-11-05",
       "risk_extraction_method": "ixbrl_div",
       "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_method": "pattern_match",
       "mda_extraction_success": true,
       "risk_magnitude": "major",
       "mda_magnitude": "major",
       "overall_materiality": "critical",
       "top_signals": [
-        "volatility [risk_factors]",
-        "impairment charge [risk_factors]",
-        "impairment [risk_factors]"
+        "volatility [mda]",
+        "criminal [risk_factors]",
+        "fraud [risk_factors]",
+        "cybersecurity incident [risk_factors]",
+        "data breach [risk_factors]"
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 30.12
+      "elapsed_seconds": 33.54
     },
     {
       "ticker": "AMT",
@@ -135,7 +147,7 @@
       "older_date": "2025-10-28",
       "risk_extraction_method": "ixbrl_div",
       "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_method": "pattern_match",
       "mda_extraction_success": true,
       "risk_magnitude": "major",
       "mda_magnitude": "major",
@@ -147,7 +159,7 @@
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 25.96
+      "elapsed_seconds": 10.53
     },
     {
       "ticker": "AMZN",
@@ -157,7 +169,7 @@
       "older_date": "2025-10-31",
       "risk_extraction_method": "ixbrl_div",
       "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_method": "pattern_match",
       "mda_extraction_success": true,
       "risk_magnitude": "moderate",
       "mda_magnitude": "major",
@@ -171,43 +183,43 @@
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 11.25
+      "elapsed_seconds": 35.12
     },
     {
       "ticker": "BA",
       "form_type": "10-Q",
-      "pipeline_success": false,
+      "pipeline_success": true,
       "newer_date": "2026-04-22",
       "older_date": "2025-10-29",
-      "risk_extraction_method": null,
-      "risk_extraction_success": null,
-      "mda_extraction_method": null,
-      "mda_extraction_success": null,
-      "risk_magnitude": null,
-      "mda_magnitude": null,
-      "overall_materiality": null,
+      "risk_extraction_method": "ixbrl_div",
+      "risk_extraction_success": true,
+      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_success": true,
+      "risk_magnitude": "major",
+      "mda_magnitude": "major",
+      "overall_materiality": "moderate",
       "top_signals": [],
       "known_gaps": [],
-      "failure_reason": "older HTML: TimeoutError: Pipeline deadline reached before attempt 2 for https://www.sec.gov/Archives/edgar/data/12927/000162828025047023/ba-20250930.htm (2.9s remaining)",
-      "elapsed_seconds": 87.13
+      "failure_reason": null,
+      "elapsed_seconds": 71.94
     },
     {
       "ticker": "BAC",
       "form_type": "10-Q",
-      "pipeline_success": false,
+      "pipeline_success": true,
       "newer_date": "2025-10-31",
       "older_date": "2025-07-31",
-      "risk_extraction_method": null,
-      "risk_extraction_success": null,
-      "mda_extraction_method": null,
-      "mda_extraction_success": null,
-      "risk_magnitude": null,
-      "mda_magnitude": null,
-      "overall_materiality": null,
+      "risk_extraction_method": "ixbrl_div",
+      "risk_extraction_success": true,
+      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_success": true,
+      "risk_magnitude": "none",
+      "mda_magnitude": "none",
+      "overall_materiality": "low",
       "top_signals": [],
       "known_gaps": [],
-      "failure_reason": "older HTML: Pipeline timeout before HTML fetch",
-      "elapsed_seconds": 157.24
+      "failure_reason": null,
+      "elapsed_seconds": 56.53
     },
     {
       "ticker": "BMY",
@@ -221,11 +233,14 @@
       "mda_extraction_success": true,
       "risk_magnitude": "major",
       "mda_magnitude": "major",
-      "overall_materiality": "moderate",
-      "top_signals": [],
+      "overall_materiality": "high",
+      "top_signals": [
+        "adverse [mda]",
+        "impairment [mda]"
+      ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 37.74
+      "elapsed_seconds": 27.87
     },
     {
       "ticker": "BRK-B",
@@ -239,11 +254,16 @@
       "mda_extraction_success": true,
       "risk_magnitude": "major",
       "mda_magnitude": "major",
-      "overall_materiality": "moderate",
-      "top_signals": [],
+      "overall_materiality": "critical",
+      "top_signals": [
+        "goodwill impairment [risk_factors]",
+        "bankruptcy [mda]",
+        "default [risk_factors]",
+        "impairment [risk_factors]"
+      ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 36.11
+      "elapsed_seconds": 28.52
     },
     {
       "ticker": "C",
@@ -271,7 +291,7 @@
         "MD&A could not be isolated (method: raw_fallback)"
       ],
       "failure_reason": null,
-      "elapsed_seconds": 97.24
+      "elapsed_seconds": 41.94
     },
     {
       "ticker": "CAT",
@@ -285,13 +305,15 @@
       "mda_extraction_success": true,
       "risk_magnitude": "none",
       "mda_magnitude": "major",
-      "overall_materiality": "moderate",
+      "overall_materiality": "high",
       "top_signals": [
+        "default [mda]",
+        "impairment [mda]",
         "write-off [mda]"
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 27.57
+      "elapsed_seconds": 33.11
     },
     {
       "ticker": "CMCSA",
@@ -301,15 +323,21 @@
       "older_date": "2025-10-30",
       "risk_extraction_method": "ixbrl_div",
       "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
-      "mda_extraction_success": true,
-      "risk_magnitude": "none",
+      "mda_extraction_method": "raw_fallback",
+      "mda_extraction_success": false,
+      "risk_magnitude": "major",
       "mda_magnitude": "major",
-      "overall_materiality": "moderate",
-      "top_signals": [],
-      "known_gaps": [],
+      "overall_materiality": "high",
+      "top_signals": [
+        "fraud [mda]",
+        "impairment [mda]"
+      ],
+      "known_gaps": [
+        "MD&A could not be isolated (method: raw_fallback)",
+        "MD&A could not be isolated (method: raw_fallback)"
+      ],
       "failure_reason": null,
-      "elapsed_seconds": 22.55
+      "elapsed_seconds": 19.61
     },
     {
       "ticker": "COP",
@@ -325,32 +353,33 @@
       "mda_magnitude": "major",
       "overall_materiality": "critical",
       "top_signals": [
+        "competition [mda]",
         "cybersecurity [mda]",
-        "adverse [mda]",
-        "impairment charge [mda]",
+        "trade restriction [mda]",
+        "sanctions [mda]",
         "impairment [mda]"
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 67.35
+      "elapsed_seconds": 54.65
     },
     {
       "ticker": "COST",
       "form_type": "10-Q",
-      "pipeline_success": false,
-      "newer_date": null,
-      "older_date": null,
-      "risk_extraction_method": null,
-      "risk_extraction_success": null,
-      "mda_extraction_method": null,
-      "mda_extraction_success": null,
-      "risk_magnitude": null,
-      "mda_magnitude": null,
-      "overall_materiality": null,
+      "pipeline_success": true,
+      "newer_date": "2026-03-11",
+      "older_date": "2025-12-17",
+      "risk_extraction_method": "ixbrl_div",
+      "risk_extraction_success": true,
+      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_success": true,
+      "risk_magnitude": "major",
+      "mda_magnitude": "major",
+      "overall_materiality": "moderate",
       "top_signals": [],
       "known_gaps": [],
-      "failure_reason": "Submissions fetch failed: ConnectError: [Errno 11002] getaddrinfo failed",
-      "elapsed_seconds": 11.21
+      "failure_reason": null,
+      "elapsed_seconds": 59.92
     },
     {
       "ticker": "CRM",
@@ -362,31 +391,40 @@
       "risk_extraction_success": true,
       "mda_extraction_method": "ixbrl_div",
       "mda_extraction_success": true,
-      "risk_magnitude": "major",
+      "risk_magnitude": "minor",
       "mda_magnitude": "major",
-      "overall_materiality": "moderate",
-      "top_signals": [],
+      "overall_materiality": "high",
+      "top_signals": [
+        "criminal [risk_factors]",
+        "fraud [risk_factors]",
+        "cybersecurity incident [risk_factors]",
+        "impairment [mda]"
+      ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 37.72
+      "elapsed_seconds": 29.89
     },
     {
       "ticker": "CVX",
       "form_type": "10-Q",
-      "pipeline_success": false,
-      "newer_date": null,
-      "older_date": null,
-      "risk_extraction_method": null,
-      "risk_extraction_success": null,
-      "mda_extraction_method": null,
-      "mda_extraction_success": null,
-      "risk_magnitude": null,
-      "mda_magnitude": null,
-      "overall_materiality": null,
-      "top_signals": [],
+      "pipeline_success": true,
+      "newer_date": "2025-11-06",
+      "older_date": "2025-08-07",
+      "risk_extraction_method": "ixbrl_div",
+      "risk_extraction_success": true,
+      "mda_extraction_method": "pattern_match",
+      "mda_extraction_success": true,
+      "risk_magnitude": "moderate",
+      "mda_magnitude": "major",
+      "overall_materiality": "high",
+      "top_signals": [
+        "leverage [mda]",
+        "impairment [mda]",
+        "write-off [mda]"
+      ],
       "known_gaps": [],
-      "failure_reason": "CIK resolution failed: ReadTimeout: ",
-      "elapsed_seconds": 81.56
+      "failure_reason": null,
+      "elapsed_seconds": 122.57
     },
     {
       "ticker": "DIS",
@@ -396,21 +434,22 @@
       "older_date": "2025-08-06",
       "risk_extraction_method": "ixbrl_div",
       "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
-      "mda_extraction_success": true,
+      "mda_extraction_method": "raw_fallback",
+      "mda_extraction_success": false,
       "risk_magnitude": "major",
       "mda_magnitude": "major",
-      "overall_materiality": "critical",
+      "overall_materiality": "high",
       "top_signals": [
-        "could [mda]",
-        "volatility [mda]",
-        "leverage [mda]",
-        "settlement [mda]",
-        "default [mda]"
+        "default [mda]",
+        "class action [mda]",
+        "impairment [mda]"
       ],
-      "known_gaps": [],
+      "known_gaps": [
+        "MD&A could not be isolated (method: raw_fallback)",
+        "MD&A could not be isolated (method: raw_fallback)"
+      ],
       "failure_reason": null,
-      "elapsed_seconds": 62.8
+      "elapsed_seconds": 23.25
     },
     {
       "ticker": "GE",
@@ -420,8 +459,8 @@
       "older_date": "2025-10-21",
       "risk_extraction_method": "raw_fallback",
       "risk_extraction_success": false,
-      "mda_extraction_method": "pattern_match",
-      "mda_extraction_success": true,
+      "mda_extraction_method": "raw_fallback",
+      "mda_extraction_success": false,
       "risk_magnitude": "major",
       "mda_magnitude": "major",
       "overall_materiality": "critical",
@@ -433,10 +472,12 @@
       ],
       "known_gaps": [
         "Risk Factors could not be isolated (method: raw_fallback)",
-        "Risk Factors could not be isolated (method: raw_fallback)"
+        "MD&A could not be isolated (method: raw_fallback)",
+        "Risk Factors could not be isolated (method: raw_fallback)",
+        "MD&A could not be isolated (method: raw_fallback)"
       ],
       "failure_reason": null,
-      "elapsed_seconds": 18.3
+      "elapsed_seconds": 39.83
     },
     {
       "ticker": "GILD",
@@ -450,15 +491,17 @@
       "mda_extraction_success": true,
       "risk_magnitude": "moderate",
       "mda_magnitude": "major",
-      "overall_materiality": "high",
+      "overall_materiality": "critical",
       "top_signals": [
+        "data breach [risk_factors]",
         "criminal [risk_factors]",
         "fraud [risk_factors]",
-        "impairment [risk_factors]"
+        "cybersecurity incident [risk_factors]",
+        "impairment [mda]"
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 69.31
+      "elapsed_seconds": 19.47
     },
     {
       "ticker": "GOOGL",
@@ -468,7 +511,7 @@
       "older_date": "2025-10-30",
       "risk_extraction_method": "ixbrl_div",
       "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_method": "pattern_match",
       "mda_extraction_success": true,
       "risk_magnitude": "major",
       "mda_magnitude": "major",
@@ -482,7 +525,7 @@
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 76.6
+      "elapsed_seconds": 71.1
     },
     {
       "ticker": "GS",
@@ -495,17 +538,16 @@
       "mda_extraction_method": "ixbrl_div",
       "mda_extraction_success": true,
       "risk_magnitude": "major",
-      "mda_magnitude": "moderate",
+      "mda_magnitude": "major",
       "overall_materiality": "critical",
       "top_signals": [
-        "net loss [mda]",
         "write-down [risk_factors]",
         "impairment [risk_factors]",
         "default [mda]"
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 36.03
+      "elapsed_seconds": 44.64
     },
     {
       "ticker": "HD",
@@ -523,7 +565,7 @@
       "top_signals": [],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 95.32
+      "elapsed_seconds": 27.34
     },
     {
       "ticker": "HON",
@@ -539,11 +581,14 @@
       "mda_magnitude": "major",
       "overall_materiality": "high",
       "top_signals": [
+        "uncertain [risk_factors]",
+        "recession [risk_factors]",
+        "supply chain disruption [risk_factors]",
         "impairment [mda]"
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 29.71
+      "elapsed_seconds": 28.16
     },
     {
       "ticker": "HOOD",
@@ -551,8 +596,8 @@
       "pipeline_success": true,
       "newer_date": "2026-04-29",
       "older_date": "2025-11-06",
-      "risk_extraction_method": "raw_fallback",
-      "risk_extraction_success": false,
+      "risk_extraction_method": "pattern_match",
+      "risk_extraction_success": true,
       "mda_extraction_method": "pattern_match",
       "mda_extraction_success": true,
       "risk_magnitude": "major",
@@ -561,14 +606,13 @@
       "top_signals": [
         "restatement [risk_factors]",
         "default [risk_factors]",
-        "insolvency [risk_factors]"
+        "insolvency [risk_factors]",
+        "fraud [mda]",
+        "impairment [mda]"
       ],
-      "known_gaps": [
-        "Risk Factors could not be isolated (method: raw_fallback)",
-        "Risk Factors could not be isolated (method: raw_fallback)"
-      ],
+      "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 31.09
+      "elapsed_seconds": 19.6
     },
     {
       "ticker": "INTC",
@@ -576,24 +620,33 @@
       "pipeline_success": true,
       "newer_date": "2026-04-24",
       "older_date": "2025-11-06",
-      "risk_extraction_method": "ixbrl_div",
-      "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
-      "mda_extraction_success": true,
+      "risk_extraction_method": "raw_fallback",
+      "risk_extraction_success": false,
+      "mda_extraction_method": "raw_fallback",
+      "mda_extraction_success": false,
       "risk_magnitude": "major",
       "mda_magnitude": "major",
-      "overall_materiality": "moderate",
-      "top_signals": [],
-      "known_gaps": [],
+      "overall_materiality": "critical",
+      "top_signals": [
+        "default [risk_factors]",
+        "class action [risk_factors]",
+        "fraud [risk_factors]"
+      ],
+      "known_gaps": [
+        "Risk Factors could not be isolated (method: raw_fallback)",
+        "MD&A could not be isolated (method: raw_fallback)",
+        "Risk Factors could not be isolated (method: raw_fallback)",
+        "MD&A could not be isolated (method: raw_fallback)"
+      ],
       "failure_reason": null,
-      "elapsed_seconds": 36.25
+      "elapsed_seconds": 23.74
     },
     {
       "ticker": "JNJ",
       "form_type": "10-Q",
       "pipeline_success": false,
-      "newer_date": null,
-      "older_date": null,
+      "newer_date": "2026-04-22",
+      "older_date": "2025-10-22",
       "risk_extraction_method": null,
       "risk_extraction_success": null,
       "mda_extraction_method": null,
@@ -603,8 +656,8 @@
       "overall_materiality": null,
       "top_signals": [],
       "known_gaps": [],
-      "failure_reason": "CIK resolution failed: TimeoutError: Pipeline deadline reached before attempt 2 for https://www.sec.gov/files/company_tickers.json (0.3s remaining)",
-      "elapsed_seconds": 89.69
+      "failure_reason": "older HTML: TimeoutError: Pipeline deadline reached before attempt 2 for https://www.sec.gov/Archives/edgar/data/200406/000020040625000209/jnj-20250928.htm (-34.1s remaining)",
+      "elapsed_seconds": 124.12
     },
     {
       "ticker": "JPM",
@@ -612,25 +665,20 @@
       "pipeline_success": true,
       "newer_date": "2025-11-04",
       "older_date": "2025-08-05",
-      "risk_extraction_method": "raw_fallback",
-      "risk_extraction_success": false,
+      "risk_extraction_method": "pattern_match",
+      "risk_extraction_success": true,
       "mda_extraction_method": "pattern_match",
       "mda_extraction_success": true,
       "risk_magnitude": "major",
       "mda_magnitude": "major",
-      "overall_materiality": "critical",
+      "overall_materiality": "high",
       "top_signals": [
         "refinancing [risk_factors]",
-        "material weakness [risk_factors]",
-        "default [risk_factors]",
-        "bankruptcy [risk_factors]"
+        "fraud [risk_factors]"
       ],
-      "known_gaps": [
-        "Risk Factors could not be isolated (method: raw_fallback)",
-        "Risk Factors could not be isolated (method: raw_fallback)"
-      ],
+      "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 115.8
+      "elapsed_seconds": 62.75
     },
     {
       "ticker": "LCID",
@@ -650,11 +698,11 @@
         "insolvency [risk_factors]",
         "write-off [risk_factors]",
         "default [mda]",
-        "write-down [mda]"
+        "impairment [mda]"
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 39.07
+      "elapsed_seconds": 24.73
     },
     {
       "ticker": "LMT",
@@ -678,7 +726,7 @@
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 44.88
+      "elapsed_seconds": 26.73
     },
     {
       "ticker": "LYFT",
@@ -701,7 +749,7 @@
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 70.48
+      "elapsed_seconds": 70.46
     },
     {
       "ticker": "MCD",
@@ -709,20 +757,25 @@
       "pipeline_success": true,
       "newer_date": "2025-11-05",
       "older_date": "2025-08-06",
-      "risk_extraction_method": "ixbrl_div",
-      "risk_extraction_success": true,
+      "risk_extraction_method": "raw_fallback",
+      "risk_extraction_success": false,
       "mda_extraction_method": "ixbrl_div",
       "mda_extraction_success": true,
-      "risk_magnitude": "none",
-      "mda_magnitude": "major",
-      "overall_materiality": "moderate",
+      "risk_magnitude": "moderate",
+      "mda_magnitude": "moderate",
+      "overall_materiality": "high",
       "top_signals": [
-        "impairment [mda]",
+        "criminal [risk_factors]",
+        "class action [risk_factors]",
+        "impairment [risk_factors]",
         "write-off [mda]"
       ],
-      "known_gaps": [],
+      "known_gaps": [
+        "Risk Factors could not be isolated (method: raw_fallback)",
+        "Risk Factors could not be isolated (method: raw_fallback)"
+      ],
       "failure_reason": null,
-      "elapsed_seconds": 55.95
+      "elapsed_seconds": 73.92
     },
     {
       "ticker": "META",
@@ -732,19 +785,19 @@
       "older_date": "2025-10-30",
       "risk_extraction_method": "ixbrl_div",
       "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_method": "pattern_match",
       "mda_extraction_success": true,
-      "risk_magnitude": "moderate",
+      "risk_magnitude": "major",
       "mda_magnitude": "major",
-      "overall_materiality": "moderate",
+      "overall_materiality": "high",
       "top_signals": [
         "default [risk_factors]",
         "class action [risk_factors]",
-        "regulatory action [risk_factors]"
+        "impairment [risk_factors]"
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 25.25
+      "elapsed_seconds": 43.0
     },
     {
       "ticker": "MMM",
@@ -762,7 +815,7 @@
       "top_signals": [],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 59.89
+      "elapsed_seconds": 29.06
     },
     {
       "ticker": "MPC",
@@ -776,11 +829,13 @@
       "mda_extraction_success": true,
       "risk_magnitude": "none",
       "mda_magnitude": "major",
-      "overall_materiality": "moderate",
-      "top_signals": [],
+      "overall_materiality": "high",
+      "top_signals": [
+        "net loss [mda]"
+      ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 69.31
+      "elapsed_seconds": 100.23
     },
     {
       "ticker": "MRK",
@@ -797,11 +852,12 @@
       "overall_materiality": "high",
       "top_signals": [
         "revenue decline [mda]",
-        "impairment [mda]"
+        "impairment [mda]",
+        "write-off [mda]"
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 100.37
+      "elapsed_seconds": 51.36
     },
     {
       "ticker": "MS",
@@ -826,7 +882,7 @@
         "MD&A could not be isolated (method: raw_fallback)"
       ],
       "failure_reason": null,
-      "elapsed_seconds": 76.35
+      "elapsed_seconds": 30.09
     },
     {
       "ticker": "MSFT",
@@ -849,7 +905,7 @@
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 115.83
+      "elapsed_seconds": 189.34
     },
     {
       "ticker": "NFLX",
@@ -859,7 +915,7 @@
       "older_date": "2025-10-22",
       "risk_extraction_method": "ixbrl_div",
       "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_method": "pattern_match",
       "mda_extraction_success": true,
       "risk_magnitude": "major",
       "mda_magnitude": "major",
@@ -867,7 +923,7 @@
       "top_signals": [],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 94.68
+      "elapsed_seconds": 53.19
     },
     {
       "ticker": "NKE",
@@ -875,17 +931,19 @@
       "pipeline_success": true,
       "newer_date": "2026-04-01",
       "older_date": "2025-12-30",
-      "risk_extraction_method": "ixbrl_div",
+      "risk_extraction_method": "pattern_match",
       "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_method": "pattern_match",
       "mda_extraction_success": true,
       "risk_magnitude": "major",
       "mda_magnitude": "major",
-      "overall_materiality": "moderate",
-      "top_signals": [],
+      "overall_materiality": "high",
+      "top_signals": [
+        "settlement [risk_factors]"
+      ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 25.6
+      "elapsed_seconds": 19.34
     },
     {
       "ticker": "NVDA",
@@ -908,7 +966,7 @@
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 23.34
+      "elapsed_seconds": 23.07
     },
     {
       "ticker": "O",
@@ -918,15 +976,22 @@
       "older_date": "2025-08-07",
       "risk_extraction_method": "ixbrl_div",
       "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
-      "mda_extraction_success": true,
+      "mda_extraction_method": "raw_fallback",
+      "mda_extraction_success": false,
       "risk_magnitude": "major",
       "mda_magnitude": "major",
-      "overall_materiality": "moderate",
-      "top_signals": [],
-      "known_gaps": [],
+      "overall_materiality": "high",
+      "top_signals": [
+        "default [mda]",
+        "bankruptcy [mda]",
+        "impairment [mda]"
+      ],
+      "known_gaps": [
+        "MD&A could not be isolated (method: raw_fallback)",
+        "MD&A could not be isolated (method: raw_fallback)"
+      ],
       "failure_reason": null,
-      "elapsed_seconds": 27.74
+      "elapsed_seconds": 70.15
     },
     {
       "ticker": "ORCL",
@@ -939,51 +1004,56 @@
       "mda_extraction_method": "ixbrl_div",
       "mda_extraction_success": true,
       "risk_magnitude": "major",
-      "mda_magnitude": "moderate",
+      "mda_magnitude": "major",
       "overall_materiality": "moderate",
       "top_signals": [
-        "acquisition [risk_factors]",
         "dilution [mda]"
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 72.42
+      "elapsed_seconds": 38.72
     },
     {
       "ticker": "PFE",
       "form_type": "10-Q",
-      "pipeline_success": false,
+      "pipeline_success": true,
       "newer_date": "2025-11-04",
       "older_date": "2025-08-05",
-      "risk_extraction_method": null,
-      "risk_extraction_success": null,
-      "mda_extraction_method": null,
-      "mda_extraction_success": null,
-      "risk_magnitude": null,
-      "mda_magnitude": null,
-      "overall_materiality": null,
-      "top_signals": [],
+      "risk_extraction_method": "ixbrl_div",
+      "risk_extraction_success": true,
+      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_success": true,
+      "risk_magnitude": "moderate",
+      "mda_magnitude": "major",
+      "overall_materiality": "high",
+      "top_signals": [
+        "impairment [mda]"
+      ],
       "known_gaps": [],
-      "failure_reason": "older HTML: Pipeline timeout before HTML fetch",
-      "elapsed_seconds": 107.32
+      "failure_reason": null,
+      "elapsed_seconds": 111.35
     },
     {
       "ticker": "PLD",
       "form_type": "10-Q",
-      "pipeline_success": false,
-      "newer_date": "2025-10-28",
-      "older_date": "2025-07-30",
-      "risk_extraction_method": null,
-      "risk_extraction_success": null,
-      "mda_extraction_method": null,
-      "mda_extraction_success": null,
-      "risk_magnitude": null,
-      "mda_magnitude": null,
-      "overall_materiality": null,
-      "top_signals": [],
+      "pipeline_success": true,
+      "newer_date": "2026-04-30",
+      "older_date": "2025-10-28",
+      "risk_extraction_method": "pattern_match",
+      "risk_extraction_success": true,
+      "mda_extraction_method": "pattern_match",
+      "mda_extraction_success": true,
+      "risk_magnitude": "major",
+      "mda_magnitude": "major",
+      "overall_materiality": "high",
+      "top_signals": [
+        "volatility [mda]",
+        "impairment [risk_factors]",
+        "write-off [risk_factors]"
+      ],
       "known_gaps": [],
-      "failure_reason": "older HTML: Pipeline timeout before HTML fetch",
-      "elapsed_seconds": 96.53
+      "failure_reason": null,
+      "elapsed_seconds": 24.66
     },
     {
       "ticker": "QCOM",
@@ -1006,38 +1076,60 @@
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 28.66
+      "elapsed_seconds": 13.53
     },
     {
       "ticker": "RIVN",
       "form_type": "10-Q",
       "pipeline_success": true,
-      "newer_date": "2025-11-04",
-      "older_date": "2025-08-05",
+      "newer_date": "2026-04-30",
+      "older_date": "2025-11-04",
       "risk_extraction_method": "ixbrl_div",
       "risk_extraction_success": true,
       "mda_extraction_method": "ixbrl_div",
       "mda_extraction_success": true,
-      "risk_magnitude": "moderate",
-      "mda_magnitude": "moderate",
+      "risk_magnitude": "major",
+      "mda_magnitude": "major",
       "overall_materiality": "critical",
       "top_signals": [
-        "refinancing [mda]",
-        "litigation [mda]",
-        "settlement [mda]",
-        "class action [mda]",
-        "impairment [risk_factors]"
+        "default [mda]",
+        "impairment [risk_factors]",
+        "goodwill impairment [risk_factors]",
+        "regulatory action [risk_factors]"
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 62.86
+      "elapsed_seconds": 28.06
     },
     {
       "ticker": "RTX",
       "form_type": "10-Q",
+      "pipeline_success": true,
+      "newer_date": "2026-04-21",
+      "older_date": "2025-10-21",
+      "risk_extraction_method": "ixbrl_div",
+      "risk_extraction_success": true,
+      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_success": true,
+      "risk_magnitude": "major",
+      "mda_magnitude": "major",
+      "overall_materiality": "high",
+      "top_signals": [
+        "refinancing [mda]",
+        "DOJ [mda]",
+        "impairment [mda]",
+        "goodwill impairment [mda]"
+      ],
+      "known_gaps": [],
+      "failure_reason": null,
+      "elapsed_seconds": 49.2
+    },
+    {
+      "ticker": "SBUX",
+      "form_type": "10-Q",
       "pipeline_success": false,
-      "newer_date": null,
-      "older_date": null,
+      "newer_date": "2026-04-28",
+      "older_date": "2026-01-28",
       "risk_extraction_method": null,
       "risk_extraction_success": null,
       "mda_extraction_method": null,
@@ -1047,29 +1139,8 @@
       "overall_materiality": null,
       "top_signals": [],
       "known_gaps": [],
-      "failure_reason": "Submissions fetch failed: ConnectError: [Errno 11002] getaddrinfo failed",
-      "elapsed_seconds": 54.32
-    },
-    {
-      "ticker": "SBUX",
-      "form_type": "10-Q",
-      "pipeline_success": true,
-      "newer_date": "2026-04-28",
-      "older_date": "2026-01-28",
-      "risk_extraction_method": "ixbrl_div",
-      "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
-      "mda_extraction_success": true,
-      "risk_magnitude": "major",
-      "mda_magnitude": "major",
-      "overall_materiality": "high",
-      "top_signals": [
-        "default [mda]",
-        "impairment [mda]"
-      ],
-      "known_gaps": [],
-      "failure_reason": null,
-      "elapsed_seconds": 28.19
+      "failure_reason": "older HTML: TimeoutError: Pipeline deadline reached before attempt 2 for https://www.sec.gov/Archives/edgar/data/829224/000082922426000011/sbux-20251228.htm (-3.1s remaining)",
+      "elapsed_seconds": 93.15
     },
     {
       "ticker": "SLB",
@@ -1079,15 +1150,20 @@
       "older_date": "2025-10-22",
       "risk_extraction_method": "ixbrl_div",
       "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_method": "pattern_match",
       "mda_extraction_success": true,
       "risk_magnitude": "major",
       "mda_magnitude": "major",
-      "overall_materiality": "moderate",
-      "top_signals": [],
+      "overall_materiality": "high",
+      "top_signals": [
+        "uncertain [risk_factors]",
+        "litigation [risk_factors]",
+        "default [risk_factors]",
+        "impairment [mda]"
+      ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 97.01
+      "elapsed_seconds": 101.8
     },
     {
       "ticker": "SNAP",
@@ -1101,15 +1177,15 @@
       "mda_extraction_success": true,
       "risk_magnitude": "moderate",
       "mda_magnitude": "major",
-      "overall_materiality": "moderate",
+      "overall_materiality": "high",
       "top_signals": [
+        "criminal [risk_factors]",
         "class action [risk_factors]",
-        "data breach [risk_factors]",
-        "regulatory action [risk_factors]"
+        "fraud [risk_factors]"
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 37.52
+      "elapsed_seconds": 29.79
     },
     {
       "ticker": "T",
@@ -1127,7 +1203,7 @@
       "top_signals": [],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 47.27
+      "elapsed_seconds": 27.13
     },
     {
       "ticker": "TGT",
@@ -1145,68 +1221,14 @@
       "top_signals": [],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 30.5
+      "elapsed_seconds": 22.79
     },
     {
       "ticker": "TSLA",
       "form_type": "10-Q",
       "pipeline_success": false,
-      "newer_date": null,
-      "older_date": null,
-      "risk_extraction_method": null,
-      "risk_extraction_success": null,
-      "mda_extraction_method": null,
-      "mda_extraction_success": null,
-      "risk_magnitude": null,
-      "mda_magnitude": null,
-      "overall_materiality": null,
-      "top_signals": [],
-      "known_gaps": [],
-      "failure_reason": "CIK resolution failed: TimeoutError: No time remaining for CIK resolution",
-      "elapsed_seconds": 89.69
-    },
-    {
-      "ticker": "TXN",
-      "form_type": "10-Q",
-      "pipeline_success": true,
-      "newer_date": "2026-04-24",
+      "newer_date": "2026-04-23",
       "older_date": "2025-10-23",
-      "risk_extraction_method": "ixbrl_div",
-      "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
-      "mda_extraction_success": true,
-      "risk_magnitude": "major",
-      "mda_magnitude": "major",
-      "overall_materiality": "moderate",
-      "top_signals": [],
-      "known_gaps": [],
-      "failure_reason": null,
-      "elapsed_seconds": 17.4
-    },
-    {
-      "ticker": "VZ",
-      "form_type": "10-Q",
-      "pipeline_success": true,
-      "newer_date": "2025-10-29",
-      "older_date": "2025-07-25",
-      "risk_extraction_method": "ixbrl_div",
-      "risk_extraction_success": true,
-      "mda_extraction_method": "ixbrl_div",
-      "mda_extraction_success": true,
-      "risk_magnitude": "major",
-      "mda_magnitude": "major",
-      "overall_materiality": "moderate",
-      "top_signals": [],
-      "known_gaps": [],
-      "failure_reason": null,
-      "elapsed_seconds": 36.38
-    },
-    {
-      "ticker": "WFC",
-      "form_type": "10-Q",
-      "pipeline_success": false,
-      "newer_date": "2026-04-29",
-      "older_date": "2025-10-31",
       "risk_extraction_method": null,
       "risk_extraction_success": null,
       "mda_extraction_method": null,
@@ -1217,7 +1239,82 @@
       "top_signals": [],
       "known_gaps": [],
       "failure_reason": "older HTML: Pipeline timeout before HTML fetch",
-      "elapsed_seconds": 89.73
+      "elapsed_seconds": 89.83
+    },
+    {
+      "ticker": "TXN",
+      "form_type": "10-Q",
+      "pipeline_success": true,
+      "newer_date": "2026-04-24",
+      "older_date": "2025-10-23",
+      "risk_extraction_method": "raw_fallback",
+      "risk_extraction_success": false,
+      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_success": true,
+      "risk_magnitude": "major",
+      "mda_magnitude": "major",
+      "overall_materiality": "high",
+      "top_signals": [
+        "impairment [risk_factors]"
+      ],
+      "known_gaps": [
+        "Risk Factors could not be isolated (method: raw_fallback)",
+        "Risk Factors could not be isolated (method: raw_fallback)"
+      ],
+      "failure_reason": null,
+      "elapsed_seconds": 14.72
+    },
+    {
+      "ticker": "VZ",
+      "form_type": "10-Q",
+      "pipeline_success": true,
+      "newer_date": "2026-05-01",
+      "older_date": "2025-10-29",
+      "risk_extraction_method": "ixbrl_div",
+      "risk_extraction_success": true,
+      "mda_extraction_method": "ixbrl_div",
+      "mda_extraction_success": true,
+      "risk_magnitude": "major",
+      "mda_magnitude": "major",
+      "overall_materiality": "critical",
+      "top_signals": [
+        "risk [mda]",
+        "adverse [mda]",
+        "workforce reduction [mda]",
+        "interest rate risk [mda]",
+        "currency risk [mda]"
+      ],
+      "known_gaps": [],
+      "failure_reason": null,
+      "elapsed_seconds": 25.61
+    },
+    {
+      "ticker": "WFC",
+      "form_type": "10-Q",
+      "pipeline_success": true,
+      "newer_date": "2026-04-29",
+      "older_date": "2025-10-31",
+      "risk_extraction_method": "raw_fallback",
+      "risk_extraction_success": false,
+      "mda_extraction_method": "raw_fallback",
+      "mda_extraction_success": false,
+      "risk_magnitude": "major",
+      "mda_magnitude": "major",
+      "overall_materiality": "critical",
+      "top_signals": [
+        "cybersecurity [risk_factors]",
+        "default [risk_factors]",
+        "bankruptcy [risk_factors]",
+        "class action [risk_factors]"
+      ],
+      "known_gaps": [
+        "Risk Factors could not be isolated (method: raw_fallback)",
+        "MD&A could not be isolated (method: raw_fallback)",
+        "Risk Factors could not be isolated (method: raw_fallback)",
+        "MD&A could not be isolated (method: raw_fallback)"
+      ],
+      "failure_reason": null,
+      "elapsed_seconds": 106.38
     },
     {
       "ticker": "WMT",
@@ -1240,7 +1337,7 @@
       ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 23.38
+      "elapsed_seconds": 8.85
     },
     {
       "ticker": "XOM",
@@ -1250,15 +1347,19 @@
       "older_date": "2025-08-04",
       "risk_extraction_method": "pattern_match",
       "risk_extraction_success": true,
-      "mda_extraction_method": "pattern_match",
+      "mda_extraction_method": "ixbrl_div",
       "mda_extraction_success": true,
       "risk_magnitude": "major",
-      "mda_magnitude": "none",
-      "overall_materiality": "moderate",
-      "top_signals": [],
+      "mda_magnitude": "major",
+      "overall_materiality": "critical",
+      "top_signals": [
+        "adverse [mda]",
+        "restructuring [mda]",
+        "impairment [mda]"
+      ],
       "known_gaps": [],
       "failure_reason": null,
-      "elapsed_seconds": 47.3
+      "elapsed_seconds": 29.98
     }
   ]
 }
