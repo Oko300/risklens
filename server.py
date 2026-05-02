@@ -321,9 +321,6 @@ async def _run_pipeline(ticker: str, form_type: str) -> dict:
     )
 
     elapsed = time.monotonic() - start
-
-    # Pipeline is "successful" even if extraction partially fell back —
-    # partial data is better than no data. Failures are flagged in sub-objects.
     overall_success = fetch_result.pipeline_success
 
     return _build_output(
@@ -369,5 +366,5 @@ def _build_auth_middleware():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
+    port = int(os.environ.get("PORT", 8080))
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=port, path="/mcp")
