@@ -63,6 +63,10 @@ DISCLAIMER = (
     "Independent verification by a qualified analyst is required before any reliance on these outputs."
 )
 
+# FIX: base_weights moved out of comment — was corrupted by copy-paste
+BASE_WEIGHTS = {1: 1.0, 2: 0.5, 3: 0.1}
+NEW_WEIGHTS  = {1: 12.0, 2: 6.0, 3: 1.0}
+
 
 @dataclass
 class SignalHit:
@@ -84,7 +88,7 @@ class SectionScore:
     new_signals: list[SignalHit]
     removed_signals: list[SignalHit]
     analyst_note: str
-    is_estimate: bool = True  # Always True — never remove
+    is_estimate: bool = True
 
 
 @dataclass
@@ -117,8 +121,8 @@ def score_sections(
         mda_score = _score_section(
             "mda", newer_mda_text, older_mda_text, mda_delta
         )
-        overall  = _combined_materiality(risk_score.materiality, mda_score.materiality)
-        top      = _top_signals(risk_score, mda_score)
+        overall = _combined_materiality(risk_score.materiality, mda_score.materiality)
+        top     = _top_signals(risk_score, mda_score)
         return ScoringResult(
             risk_factors=risk_score, mda=mda_score,
             overall_materiality=overall, top_signals=top,
@@ -146,10 +150,8 @@ def _score_section(
     if not newer_text:
         return _empty_score(section_name)
 
-    # All signals in newer text (base weight: low, these are always present)
     newer_hits = _find_signals(newer_text, in_change=False)
 
-    # Signals in changed sentences only (higher weight — these are new language)
     if delta and delta.delta_success:
         changed_text = _extract_changed_text(delta)
         if changed_text:
@@ -158,26 +160,25 @@ def _score_section(
                 if h.signal in change_hits:
                     h.in_change = True
 
-    # New signals: present in newer but not older
     new_signals: list[SignalHit] = []
     removed_signals: list[SignalHit] = []
     if older_text:
         older_signal_names = {h.signal for h in _find_signals(older_text, in_change=False)}
         newer_signal_names = {h.signal for h in newer_hits}
-        new_names     = newer_signal_names - older_signal_names
-        removed_names = older_signal_names - newer_signal_names
-        new_signals     = [h for h in newer_hits if h.signal in new_names]
-        removed_signals = [
+        new_names          = newer_signal_names - older_signal_names
+        removed_names      = older_signal_names - newer_signal_names
+        new_signals        = [h for h in newer_hits if h.signal in new_names]
+        removed_signals    = [
             h for h in _find_signals(older_text, in_change=False)
             if h.signal in removed_names
         ]
 
-    raw        = _compute_raw_score(newer_hits, new_signals, delta)
+    raw         = _compute_raw_score(newer_hits, new_signals, delta)
     materiality = _score_to_materiality(raw)
 
-    t1 = [h for h in newer_hits if h.tier == 1]
-    t2 = [h for h in newer_hits if h.tier == 2]
-    t3 = [h for h in newer_hits if h.tier == 3]
+    t1   = [h for h in newer_hits if h.tier == 1]
+    t2   = [h for h in newer_hits if h.tier == 2]
+    t3   = [h for h in newer_hits if h.tier == 3]
     note = _analyst_note(section_name, materiality, t1, new_signals, removed_signals, delta)
 
     return SectionScore(
@@ -236,19 +237,6 @@ def _extract_changed_text(delta: SectionDelta) -> str:
 
 # ---------------------------------------------------------------------------
 # Calibrated scoring
-#
-# Philosophy:
-#   - A filing with zero changes and many risk keywords → LOW
-#     (every large-cap filing has "may", "could", "risk" hundreds of times)
-#   - A filing with new tier-1 signals in changed sentences → HIGH or CRITICAL
-#   - Absolute keyword presence contributes minimally to the score
-#   - Change magnitude and new signals drive the score up
-#
-# Thresholds (tuned against 60-ticker live test):
-#   LOW      < 8
-#   MODERATE 8–19
-#   HIGH     20–34
-#   CRITICAL >= 35
 # ---------------------------------------------------------------------------
 
 def _compute_raw_score(
@@ -256,23 +244,16 @@ def _compute_raw_score(
     new_signals: list[SignalHit],
     delta: Optional[SectionDelta],
 ) -> float:
-    # Base: absolute keyword presence — low weight to avoid inflation
-    # Tier1=1.0, Tier2=0.5, Tier3=0.1 per hit (much lower than before)
-    base_weights = {1: 1.0, 2: 0.5, 3: 0.1}
-    base = sum(base_weights.get(h.tier, 0) for h in hits)
+    # FIX: BASE_WEIGHTS now defined at module level — no longer inside comment
+    base = sum(BASE_WEIGHTS.get(h.tier, 0) for h in hits)
 
-    # Changed-sentence bonus: signals in new/rewritten text score extra
     change_bonus = sum(
-        base_weights.get(h.tier, 0) * 1.5
+        BASE_WEIGHTS.get(h.tier, 0) * 1.5
         for h in hits if h.in_change
     )
 
-    # New signal bonus: signals not present in prior filing score heavily
-    # This is where real materiality comes from
-    new_weights = {1: 12.0, 2: 6.0, 3: 1.0}
-    new_bonus = sum(new_weights.get(h.tier, 0) for h in new_signals)
+    new_bonus = sum(NEW_WEIGHTS.get(h.tier, 0) for h in new_signals)
 
-    # Change magnitude bonus
     mag_bonus = 0.0
     if delta and delta.delta_success:
         mag_bonus = {
@@ -313,7 +294,6 @@ def _top_signals(risk: SectionScore, mda: SectionScore) -> list[str]:
     for h, sec in sorted(all_hits, key=lambda x: (-x[0].tier, -x[0].weight)):
         if h.signal not in seen:
             seen.add(h.signal)
-            tag = " [NEW]" if h in [] else ""
             result.append(f"{h.signal} [{sec}]")
     return result[:10]
 
