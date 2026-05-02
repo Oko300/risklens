@@ -475,4 +475,4 @@ def _identify_gaps(
         gaps.append("Filing HTML is unusually short — may be a stub or redirect")
     if full_char_count > 2_000_000:
         gaps.append("Filing HTML is very large (>2MB) — extraction may have boundary errors")
-   return gaps
+    return gaps
