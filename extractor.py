@@ -111,8 +111,6 @@ def _build_specs(form_type: str) -> dict:
         mda_spec = {
             "item_label": "Item 2",
             "display":    "Management's Discussion and Analysis",
-            # Require "management" or "discussion" in the heading — prevents grabbing
-            # "Item 2 — Unregistered Sales" which also uses bold Item 2 style
             "start_patterns": [
                 r"item\s+2[\.\s\u2014\-\u2013]+management",
                 r"item\s+2[\.\s]+discussion",
@@ -132,12 +130,11 @@ def _build_specs(form_type: str) -> dict:
         mda_spec = {
             "item_label": "Item 7",
             "display":    "Management's Discussion and Analysis",
-            # ONLY match Item 7 with "management" or "discussion" in heading.
-            # "item\s+7\b" alone would also match "Item 7A" or "Item 7 — Reserved"
             "start_patterns": [
                 r"item\s+7[\.\s\u2014\-\u2013]+management",
                 r"item\s+7[\.\s]+discussion",
                 r"item\s+7[\.\s]+md",
+                r"item\s+7\b",  # FIX: EDGAR splits heading across two bold divs — bare fallback needed
             ],
             "end_patterns": [
                 r"item\s+7a\b",
@@ -257,7 +254,6 @@ def _try_heading_strategy(soup: BeautifulSoup, spec: dict) -> Optional[str]:
         for tag in soup.select(selector):
             if start_re.search(_norm(tag.get_text())) and not _looks_like_toc_entry(tag):
                 text = _collect_forward(tag, spec["next_items"])
-                # Skip if too short — likely a TOC hit, not the real section
                 if text and len(text) >= MIN_SECTION_CHARS:
                     return text
     return None
@@ -295,16 +291,11 @@ def _try_ixbrl_div_strategy(soup: BeautifulSoup, spec: dict) -> Optional[str]:
             continue
 
         if len(text) >= MIN_SECTION_CHARS:
-            # Good hit — real section content
             return text
 
-        # Text too short — this was a TOC entry or stub heading.
-        # Keep the best short result as a fallback but keep scanning.
         if best_text is None or len(text) > len(best_text):
             best_text = text
 
-    # Return best short result only if nothing better was found
-    # (will fail _plausible check and fall through to next strategy)
     return best_text
 
 
@@ -336,7 +327,6 @@ def _try_pattern_strategy(full_text: str, spec: dict) -> Optional[str]:
     start_re = re.compile("|".join(spec["start_patterns"]), re.IGNORECASE)
     end_re   = re.compile("|".join(spec["end_patterns"]),   re.IGNORECASE)
 
-    # Find ALL occurrences of the start pattern and take the one with the most content
     best_text = None
     search_from = 0
     while True:
@@ -352,7 +342,6 @@ def _try_pattern_strategy(full_text: str, spec: dict) -> Optional[str]:
         if len(candidate) >= MIN_SECTION_CHARS:
             if best_text is None or len(candidate) > len(best_text):
                 best_text = candidate
-            # Take the first substantial hit
             break
 
         search_from = m.end()
@@ -392,7 +381,6 @@ def _collect_forward(
             if hasattr(tag, "get_text") else str(tag)
         tag_norm = _norm(tag_text)
 
-        # Only stop on STANDALONE heading elements — not inline text
         if _looks_like_standalone_heading(tag):
             for end_item in end_items:
                 if tag_norm.startswith(end_item) or f"\n{end_item}" in tag_norm:
@@ -446,25 +434,19 @@ def _looks_like_standalone_heading(tag) -> bool:
     """
     if not hasattr(tag, "name"):
         return False
-    # Unambiguous heading tags
     if tag.name in ("h1", "h2", "h3", "h4"):
         return True
-    # Bold div/span — only standalone if it's a direct child of body/section,
-    # not nested inside a paragraph. Check: parent is not a <p> or <td>.
     if tag.name in ("div", "span"):
         if _BOLD_STYLE_RE.search(tag.get("style", "")):
             text = tag.get_text(strip=True)
             parent = tag.parent
             parent_name = getattr(parent, "name", "") if parent else ""
-            # Short bold div not inside a paragraph → standalone heading
             if len(text) < 150 and parent_name not in ("p", "li", "span"):
                 return True
-    # Bold tags — only standalone if they ARE the paragraph (not inline in prose)
     if tag.name in ("b", "strong"):
         text = tag.get_text(strip=True)
         parent = tag.parent
         parent_name = getattr(parent, "name", "") if parent else ""
-        # If the bold is the entire paragraph, it's a heading
         if parent_name == "p" and len(parent.get_text(strip=True)) == len(text):
             return True
     return False
