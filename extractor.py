@@ -13,6 +13,7 @@ KEY FIXES:
    (only standalone bold headings stop collection)
 4. 10-K MD&A start patterns require "management" or "discussion" in heading —
    prevents confusing "Item 7 — Reserved" or other short Item 7 entries
+5. Bare Item 7 fallback added for EDGAR filings that split heading across two bold divs
 """
 
 import re
