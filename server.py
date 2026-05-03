@@ -291,12 +291,12 @@ async def _run_pipeline(ticker: str, form_type: str) -> dict:
         )
 
     # Step 2: Extract sections from both filings
-    newer_extraction = extract_sections(
+    newer_extraction = await extract_sections(          # ← FIXED: added await
         fetch_result.newer_html or "",
         accession=fetch_result.newer.accession_number if fetch_result.newer else "",
         filing_date=fetch_result.newer.filing_date if fetch_result.newer else "",
     )
-    older_extraction = extract_sections(
+    older_extraction = await extract_sections(          # ← FIXED: added await
         fetch_result.older_html or "",
         accession=fetch_result.older.accession_number if fetch_result.older else "",
         filing_date=fetch_result.older.filing_date if fetch_result.older else "",
