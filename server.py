@@ -24,7 +24,7 @@ except ImportError:
     )
 
 from fetcher import fetch_two_filings
-from extractor import extract_sections
+from extractorimport extract_sections_cached as extract_sections
 from delta import compute_delta
 from scorer import score_sections, DISCLAIMER
 

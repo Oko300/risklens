@@ -14,8 +14,11 @@ KEY FIXES:
 4. 10-K MD&A start patterns require "management" or "discussion" in heading —
    prevents confusing "Item 7 — Reserved" or other short Item 7 entries
 5. Bare Item 7 fallback added for EDGAR filings that split heading across two bold divs
+6. Redis cache for extracted sections — skips BeautifulSoup parse on repeat queries
 """
 
+import json
+import os
 import re
 import unicodedata
 import warnings
@@ -23,12 +26,16 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
+import redis.asyncio as aioredis
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 # Minimum chars for extracted text to be considered a real section (not a TOC hit)
 MIN_SECTION_CHARS = 500
+
+# Redis TTL for extracted sections — same as HTML cache (24 hours)
+REDIS_TTL_EXTRACTION = 86400
 
 
 class ExtractionMethod(str, Enum):
@@ -75,6 +82,112 @@ class ExtractionResult:
     @property
     def any_succeeded(self) -> bool:
         return self.risk_factors.extraction_success or self.mda.extraction_success
+
+
+# ---------------------------------------------------------------------------
+# Redis client — shared, optional, never fatal
+# ---------------------------------------------------------------------------
+
+_redis_client: Optional[aioredis.Redis] = None
+
+
+async def _get_redis() -> Optional[aioredis.Redis]:
+    global _redis_client
+    if _redis_client is not None:
+        return _redis_client
+    host     = os.getenv("REDIS_HOST")
+    port     = int(os.getenv("REDIS_PORT", "6379"))
+    password = os.getenv("REDIS_PASSWORD")
+    if not host:
+        return None
+    try:
+        _redis_client = aioredis.Redis(
+            host=host, port=port, password=password,
+            decode_responses=True,
+            socket_connect_timeout=3,
+            socket_timeout=3,
+        )
+        await _redis_client.ping()
+    except Exception:
+        _redis_client = None
+    return _redis_client
+
+
+async def _cache_get(key: str) -> Optional[str]:
+    try:
+        r = await _get_redis()
+        if r is None:
+            return None
+        return await r.get(key)
+    except Exception:
+        return None
+
+
+async def _cache_set(key: str, value: str, ttl: int) -> None:
+    try:
+        r = await _get_redis()
+        if r is None:
+            return
+        await r.setex(key, ttl, value)
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Serialisation helpers for caching ExtractionResult
+# ---------------------------------------------------------------------------
+
+def _section_to_dict(s: SectionResult) -> dict:
+    return {
+        "section_name":      s.section_name,
+        "item_label":        s.item_label,
+        "text":              s.text,
+        "method":            s.method.value,
+        "extraction_success": s.extraction_success,
+        "failure_reason":    s.failure_reason,
+        "char_count":        s.char_count,
+        "confidence_score":  s.confidence_score,
+        "coverage_gap_note": s.coverage_gap_note,
+    }
+
+
+def _section_from_dict(d: dict) -> SectionResult:
+    return SectionResult(
+        section_name=d["section_name"],
+        item_label=d["item_label"],
+        text=d["text"],
+        method=ExtractionMethod(d["method"]),
+        extraction_success=d["extraction_success"],
+        failure_reason=d["failure_reason"],
+        char_count=d["char_count"],
+        confidence_score=d["confidence_score"],
+        coverage_gap_note=d["coverage_gap_note"],
+    )
+
+
+def _result_to_json(result: ExtractionResult) -> str:
+    return json.dumps({
+        "filing_accession":   result.filing_accession,
+        "filing_date":        result.filing_date,
+        "form_type":          result.form_type,
+        "risk_factors":       _section_to_dict(result.risk_factors),
+        "mda":                _section_to_dict(result.mda),
+        "full_doc_char_count": result.full_doc_char_count,
+        "known_gaps":         result.known_gaps,
+    })
+
+
+def _result_from_json(raw: str) -> ExtractionResult:
+    d = json.loads(raw)
+    return ExtractionResult(
+        filing_accession=d["filing_accession"],
+        filing_date=d["filing_date"],
+        form_type=d["form_type"],
+        risk_factors=_section_from_dict(d["risk_factors"]),
+        mda=_section_from_dict(d["mda"]),
+        full_doc_char_count=d["full_doc_char_count"],
+        known_gaps=d["known_gaps"],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -152,8 +265,41 @@ def _build_specs(form_type: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Public entry point
+# Public entry point — checks Redis before parsing HTML
 # ---------------------------------------------------------------------------
+
+async def extract_sections_cached(
+    html: str,
+    accession: str = "",
+    filing_date: str = "",
+    form_type: str = "10-Q",
+) -> ExtractionResult:
+    """
+    Async version of extract_sections with Redis caching.
+    Call this from server.py instead of extract_sections for cache support.
+    Cache key: edgar:extraction:{accession}:{form_type}
+    """
+    cache_key = f"edgar:extraction:{accession}:{form_type}"
+
+    # Check Redis cache first
+    cached = await _cache_get(cache_key)
+    if cached:
+        try:
+            return _result_from_json(cached)
+        except Exception:
+            pass  # Corrupted cache entry — fall through to re-parse
+
+    # Cache miss — parse HTML normally
+    result = extract_sections(html, accession, filing_date, form_type)
+
+    # Store in Redis for next time
+    try:
+        await _cache_set(cache_key, _result_to_json(result), REDIS_TTL_EXTRACTION)
+    except Exception:
+        pass  # Cache write failure is never fatal
+
+    return result
+
 
 def extract_sections(
     html: str,
