@@ -47,11 +47,7 @@ class SectionDelta:
 class DeltaResult:
     risk_factors: SectionDelta
     mda: SectionDelta
-    comparison_note: str = (
-        "ESTIMATE: Change analysis is based on automated sentence-level diff. "
-        "It may miss semantic equivalences or flag stylistic rewrites as material changes. "
-        "Independent verification is recommended before acting on these outputs."
-    )
+    comparison_note: str = ""
 
 
 # ---------------------------------------------------------------------------

@@ -26,7 +26,7 @@ except ImportError:
 from fetcher import fetch_two_filings
 from extractor import extract_sections_cached as extract_sections
 from delta import compute_delta
-from scorer import score_sections, DISCLAIMER
+from scorer import score_sections
 
 # ---------------------------------------------------------------------------
 # MCP application
@@ -177,7 +177,6 @@ def _build_output(
             "top_signals": s.top_signals,
             "scoring_success": s.scoring_success,
             "failure_reason": s.failure_reason,
-            "disclaimer": s.disclaimer,
         }
 
     return {
@@ -194,15 +193,6 @@ def _build_output(
         "older_extraction": extraction_dict(older_extraction),
         "delta": delta_dict(delta_result),
         "scoring": scoring_dict(scoring_result),
-        "disclaimer": DISCLAIMER,
-        "coverage_gap_disclosure": (
-            "RiskLens only analyzes 10-Q and 10-K filings. "
-            "Only Risk Factors (Item 1A) and MD&A (Item 7) sections are compared. "
-            "Only the two most recent filings are compared. "
-            "XBRL inline filings, exhibits, and amendments are not separately processed. "
-            "Foreign private issuers (20-F) are not supported. "
-            "Extraction may fail on heavily structured or image-based filings."
-        ),
     }
 
 

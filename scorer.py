@@ -1,7 +1,6 @@
 """
 scorer.py — RiskLens materiality scorer
 Scans extracted sections and delta changes for high-risk financial/legal signals.
-All outputs are explicitly labeled as ESTIMATES.
 
 SCORING CALIBRATION FIX:
 - Absolute keyword presence is weighted very low (large filings always have risk words)
@@ -56,13 +55,6 @@ TIER3_SIGNALS = [
     "integration risk", "acquisition", "leverage", "refinancing", "dilution",
 ]
 
-DISCLAIMER = (
-    "ESTIMATE — All materiality assessments, signal detections, and analyst notes "
-    "produced by RiskLens are automated estimates based on keyword matching and "
-    "statistical heuristics. They do not constitute financial, legal, or investment advice. "
-    "Independent verification by a qualified analyst is required before any reliance on these outputs."
-)
-
 # FIX: base_weights moved out of comment — was corrupted by copy-paste
 BASE_WEIGHTS = {1: 1.0, 2: 0.5, 3: 0.1}
 NEW_WEIGHTS  = {1: 12.0, 2: 6.0, 3: 1.0}
@@ -97,7 +89,6 @@ class ScoringResult:
     mda: SectionScore
     overall_materiality: MaterialityLevel
     top_signals: list[str]
-    disclaimer: str = field(default_factory=lambda: DISCLAIMER)
     scoring_success: bool = True
     failure_reason: Optional[str] = None
 
@@ -308,7 +299,7 @@ def _analyst_note(
     removed_signals: list[SignalHit], delta: Optional[SectionDelta],
 ) -> str:
     label = "Risk Factors" if section_name == "risk_factors" else "MD&A"
-    parts = [f"[ESTIMATE] {label} materiality: {materiality.value.upper()}."]
+    parts = [f"{label} materiality: {materiality.value.upper()}."]
 
     if tier1_hits:
         names = ", ".join(h.signal for h in tier1_hits[:5])
@@ -328,9 +319,6 @@ def _analyst_note(
             f"(magnitude: {delta.magnitude.value})."
         )
 
-    parts.append(
-        "Automated estimate only — do not use as sole basis for any investment or legal decision."
-    )
     return " ".join(parts)
 
 
@@ -344,9 +332,6 @@ def _empty_score(section_name: str) -> SectionScore:
         materiality=MaterialityLevel.LOW, raw_score=0.0,
         tier1_hits=[], tier2_hits=[], tier3_hits=[],
         new_signals=[], removed_signals=[],
-        analyst_note=(
-            f"[ESTIMATE] No text available for {section_name} — scoring skipped. "
-            "Check extraction logs for failure details."
-        ),
+        analyst_note=f"No text available for {section_name} — scoring skipped.",
         is_estimate=True,
     )
