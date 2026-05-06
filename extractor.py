@@ -15,6 +15,9 @@ KEY FIXES:
    prevents confusing "Item 7 — Reserved" or other short Item 7 entries
 5. Bare Item 7 fallback added for EDGAR filings that split heading across two bold divs
 6. Redis cache for extracted sections — skips BeautifulSoup parse on repeat queries
+7. pattern_min_chars per spec — pattern_match rejects fragments below section threshold
+8. 10-Q Risk Factors reference pointer detection — flags incorporated-by-reference
+   sections instead of running a false delta comparison
 """
 
 import json
@@ -36,6 +39,16 @@ MIN_SECTION_CHARS = 500
 
 # Redis TTL for extracted sections — same as HTML cache (24 hours)
 REDIS_TTL_EXTRACTION = 86400
+
+# FIX 8: Threshold and phrases for 10-Q Risk Factors reference pointer detection
+_REFERENCE_POINTER_THRESHOLD = 2000
+_REFERENCE_POINTER_PHRASES = [
+    "incorporated by reference",
+    "annual report on form 10-k",
+    "see our 10-k",
+    "see part i, item 1a",
+    "refer to our annual report",
+]
 
 
 class ExtractionMethod(str, Enum):
@@ -219,6 +232,7 @@ def _build_specs(form_type: str) -> dict:
         "keywords": ["risk", "could", "may", "uncertain", "adverse", "material",
                      "competition", "regulatory", "harm", "impact", "exposure",
                      "liability", "loss", "failure", "breach"],
+        "pattern_min_chars": 1500,  # FIX 6: pattern_match must return substantial content
     }
 
     if form_type == "10-Q":
@@ -239,6 +253,7 @@ def _build_specs(form_type: str) -> dict:
             "keywords": ["revenue", "operating", "liquidity", "results", "cash",
                          "quarter", "year", "income", "loss", "expense", "financial",
                          "increased", "decreased", "compared", "net"],
+            "pattern_min_chars": 4000,  # FIX 6: pattern_match must return substantial content
         }
     else:  # 10-K
         mda_spec = {
@@ -259,6 +274,7 @@ def _build_specs(form_type: str) -> dict:
             "keywords": ["revenue", "operating", "liquidity", "results", "cash",
                          "quarter", "year", "income", "loss", "expense", "financial",
                          "increased", "decreased", "compared", "net"],
+            "pattern_min_chars": 4000,  # FIX 6: pattern_match must return substantial content
         }
 
     return {"risk_factors": risk_spec, "mda": mda_spec}
@@ -313,8 +329,8 @@ def extract_sections(
     full_char_count = len(full_text)
     specs           = _build_specs(form_type)
 
-    risk_result = _extract_section(soup, full_text, "risk_factors", specs, accession)
-    mda_result  = _extract_section(soup, full_text, "mda",          specs, accession)
+    risk_result = _extract_section(soup, full_text, "risk_factors", specs, accession, form_type)
+    mda_result  = _extract_section(soup, full_text, "mda",          specs, accession, form_type)
     gaps        = _identify_gaps(risk_result, mda_result, full_char_count)
 
     return ExtractionResult(
@@ -335,28 +351,39 @@ def extract_sections(
 def _extract_section(
     soup: BeautifulSoup, full_text: str,
     section_key: str, specs: dict, accession: str,
+    form_type: str = "10-Q",
 ) -> SectionResult:
     spec = specs[section_key]
 
     text = _try_anchor_strategy(soup, spec)
     if text and _plausible(text, spec):
-        return _ok(section_key, spec, text, ExtractionMethod.ANCHOR_HREF, 0.92)
+        return _check_reference_pointer(
+            section_key, spec, text, ExtractionMethod.ANCHOR_HREF, 0.92, form_type
+        )
 
     text = _try_heading_strategy(soup, spec)
     if text and _plausible(text, spec):
-        return _ok(section_key, spec, text, ExtractionMethod.HEADING_TAG, 0.85)
+        return _check_reference_pointer(
+            section_key, spec, text, ExtractionMethod.HEADING_TAG, 0.85, form_type
+        )
 
     text = _try_ixbrl_div_strategy(soup, spec)
     if text and _plausible(text, spec):
-        return _ok(section_key, spec, text, ExtractionMethod.IXBRL_DIV, 0.82)
+        return _check_reference_pointer(
+            section_key, spec, text, ExtractionMethod.IXBRL_DIV, 0.82, form_type
+        )
 
     text = _try_toc_strategy(soup, spec)
     if text and _plausible(text, spec):
-        return _ok(section_key, spec, text, ExtractionMethod.TABLE_OF_CONTENTS, 0.78)
+        return _check_reference_pointer(
+            section_key, spec, text, ExtractionMethod.TABLE_OF_CONTENTS, 0.78, form_type
+        )
 
     text = _try_pattern_strategy(full_text, spec)
     if text and _plausible(text, spec):
-        return _ok(section_key, spec, text, ExtractionMethod.PATTERN_MATCH, 0.70)
+        return _check_reference_pointer(
+            section_key, spec, text, ExtractionMethod.PATTERN_MATCH, 0.70, form_type
+        )
 
     gap = (
         f"{spec['display']} ({spec['item_label']}) could not be isolated "
@@ -372,6 +399,55 @@ def _extract_section(
         confidence_score=0.20,
         coverage_gap_note=gap,
     )
+
+
+# ---------------------------------------------------------------------------
+# FIX 8: Reference pointer detection for 10-Q Risk Factors
+# ---------------------------------------------------------------------------
+
+def _is_reference_pointer(text: str) -> bool:
+    """
+    True when the extracted text is short and contains boilerplate indicating
+    the section incorporates Risk Factors by reference from the annual 10-K,
+    rather than restating them in full.
+    """
+    if len(text) >= _REFERENCE_POINTER_THRESHOLD:
+        return False
+    text_lower = text.lower()
+    return any(phrase in text_lower for phrase in _REFERENCE_POINTER_PHRASES)
+
+
+def _check_reference_pointer(
+    section_key: str, spec: dict, text: str,
+    method: ExtractionMethod, confidence: float,
+    form_type: str,
+) -> SectionResult:
+    """
+    FIX 8: After successful extraction of Risk Factors on a 10-Q, check whether
+    the text is just a reference pointer to the 10-K rather than real content.
+    If so, return extraction_success=False with a clear coverage_gap_note so the
+    delta engine does not produce a misleading materiality verdict.
+    For all other sections and form types, fall through to the normal _ok() path.
+    """
+    if section_key == "risk_factors" and form_type == "10-Q" and _is_reference_pointer(text):
+        return SectionResult(
+            section_name=section_key,
+            item_label=spec["item_label"],
+            text=text,
+            method=method,
+            extraction_success=False,
+            failure_reason=(
+                "Risk Factors section in this 10-Q incorporates by reference "
+                "from the annual 10-K filing."
+            ),
+            confidence_score=0.0,
+            coverage_gap_note=(
+                "Risk Factors section in this 10-Q references the 10-K; "
+                "no material Q-over-Q comparison possible. "
+                "Use the annual 10-K filings to compare Risk Factors year-over-year."
+            ),
+        )
+    return _ok(section_key, spec, text, method, confidence)
 
 
 # ---------------------------------------------------------------------------
@@ -486,7 +562,8 @@ def _try_pattern_strategy(full_text: str, spec: dict) -> Optional[str]:
         else:
             candidate = full_text[m.start(): m.start() + 80_000].strip()
 
-        if len(candidate) >= MIN_SECTION_CHARS:
+        # FIX 6: use spec-level threshold so pattern_match rejects fragments
+        if len(candidate) >= spec.get("pattern_min_chars", MIN_SECTION_CHARS):
             if best_text is None or len(candidate) > len(best_text):
                 best_text = candidate
             break
