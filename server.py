@@ -28,12 +28,11 @@ from ctxprotocol import verify_context_request, ContextError
 from fetcher import fetch_two_filings
 from extractor import extract_sections_cached as extract_sections
 from delta import compute_delta
-from scorer import score_sections, DISCLAIMER
+from scorer import score_sections
+
 
 # ---------------------------------------------------------------------------
 # Pydantic output schema
-# FastMCP auto-generates outputSchema from Pydantic return types.
-# This satisfies the Context Protocol outputSchema requirement.
 # ---------------------------------------------------------------------------
 
 class FilingMetaOut(BaseModel):
@@ -126,7 +125,6 @@ class ScoringOut(BaseModel):
     top_signals: list[str]
     scoring_success: bool
     failure_reason: Optional[str]
-    disclaimer: str
 
 
 class CompareFilingsOutput(BaseModel):
@@ -143,7 +141,6 @@ class CompareFilingsOutput(BaseModel):
     older_extraction: Optional[ExtractionOut]
     delta: Optional[DeltaOut]
     scoring: Optional[ScoringOut]
-    disclaimer: str
     coverage_gap_disclosure: str
 
 
@@ -154,9 +151,7 @@ class CompareFilingsOutput(BaseModel):
 mcp = FastMCP(name="RiskLens")
 
 # ---------------------------------------------------------------------------
-# FIX 1: ctxprotocol auth middleware — REQUIRED for paid tools ($0.01+)
-# Replaces the broken _build_auth_middleware() that was never attached.
-# Only tools/call is protected. tools/list remains open for discovery.
+# ctxprotocol auth middleware — REQUIRED for paid tools ($0.01+)
 # ---------------------------------------------------------------------------
 
 class ContextProtocolAuth(Middleware):
@@ -175,19 +170,17 @@ class ContextProtocolAuth(Middleware):
 
 mcp.add_middleware(ContextProtocolAuth())
 
-TOOL_TIMEOUT = 55  # seconds — stay within 60s grant requirement
+TOOL_TIMEOUT = 55
 
 # ---------------------------------------------------------------------------
-# FIX 2: Sanity thresholds
-# When extraction falls below these, pipeline_success=False.
-# Prevents confident materiality verdicts from near-empty inputs.
+# Sanity thresholds
 # ---------------------------------------------------------------------------
 
-MDA_MIN_CHARS        = 5000   # Alex's recommendation
-RISK_FACTORS_MIN_CHARS_10K = 2000  # Only enforced on 10-K (10-Q can legitimately be a pointer)
+MDA_MIN_CHARS              = 5000
+RISK_FACTORS_MIN_CHARS_10K = 2000
 
 # ---------------------------------------------------------------------------
-# FIX 3: 10-Q reference pointer phrases
+# 10-Q reference pointer detection
 # ---------------------------------------------------------------------------
 
 _RF_REFERENCE_PHRASES = [
@@ -197,14 +190,10 @@ _RF_REFERENCE_PHRASES = [
     "refer to part i, item 1a",
 ]
 
-_RF_REFERENCE_CHAR_THRESHOLD = 3000  # Under this, check for reference pointer
+_RF_REFERENCE_CHAR_THRESHOLD = 3000
 
 
 def _is_rf_reference_pointer(text: Optional[str], char_count: int) -> bool:
-    """
-    Returns True if the Risk Factors section is just a pointer to the 10-K,
-    not the actual risk list. Common in S&P 500 10-Qs.
-    """
     if char_count >= _RF_REFERENCE_CHAR_THRESHOLD:
         return False
     if not text:
@@ -230,7 +219,7 @@ _COVERAGE_GAP = (
 
 
 # ---------------------------------------------------------------------------
-# Output builder — returns Pydantic model
+# Output builder
 # ---------------------------------------------------------------------------
 
 def _build_output(
@@ -287,14 +276,6 @@ def _build_output(
             known_gaps=e.known_gaps,
             both_succeeded=e.both_succeeded,
             any_succeeded=e.any_succeeded,
-        )
-
-    def change_out(c) -> ChangeOut:
-        return ChangeOut(
-            type=c["type"],
-            older=c["older"],
-            newer=c["newer"],
-            similarity=c["similarity"],
         )
 
     def section_delta_out(sd) -> Optional[SectionDeltaOut]:
@@ -365,7 +346,6 @@ def _build_output(
             top_signals=s.top_signals,
             scoring_success=s.scoring_success,
             failure_reason=s.failure_reason,
-            disclaimer=DISCLAIMER,
         )
 
     return CompareFilingsOutput(
@@ -382,13 +362,12 @@ def _build_output(
         older_extraction=extraction_out(older_extraction),
         delta=delta_out(delta_result),
         scoring=scoring_out(scoring_result),
-        disclaimer=DISCLAIMER,
         coverage_gap_disclosure=_COVERAGE_GAP,
     )
 
 
 # ---------------------------------------------------------------------------
-# Tool definition — return type is Pydantic model for outputSchema generation
+# Tool definition
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
@@ -399,15 +378,12 @@ async def compare_filings(
     """
     Compare the two most recent SEC filings (10-Q or 10-K) for a US public company.
     Analyzes Risk Factors (Item 1A) and MD&A (Item 7) only.
-    Returns structured delta analysis and materiality scores (labeled as estimates).
+    Returns structured delta analysis and materiality scores.
 
-    IMPORTANT — 10-Q Risk Factors: Most S&P 500 10-Q filings incorporate Risk Factors
-    by reference from the annual 10-K rather than restating them in full. When this is
-    detected, the tool flags it explicitly instead of running a misleading comparison.
-    Use form_type='10-K' for annual risk factor comparisons.
-
-    IMPORTANT — Materiality scores: All scores are automated estimates based on
-    keyword matching and heuristics. They do not constitute investment advice.
+    10-Q Risk Factors note: Most S&P 500 10-Q filings incorporate Risk Factors
+    by reference from the annual 10-K. When detected, the tool flags this explicitly
+    instead of running a misleading comparison. Use form_type='10-K' for annual
+    risk factor comparisons.
 
     Args:
         ticker: US stock ticker symbol (e.g. AAPL, MSFT, TSLA, JPM)
@@ -453,7 +429,6 @@ async def compare_filings(
 async def _run_pipeline(ticker: str, form_type: str) -> CompareFilingsOutput:
     start = time.monotonic()
 
-    # Step 1: Fetch
     fetch_result = await fetch_two_filings(ticker, form_type)
 
     if not fetch_result.pipeline_success:
@@ -466,7 +441,6 @@ async def _run_pipeline(ticker: str, form_type: str) -> CompareFilingsOutput:
             elapsed_seconds=time.monotonic() - start,
         )
 
-    # Step 2: Extract — FIX 5: form_type now passed correctly
     newer_extraction, older_extraction = await asyncio.gather(
         extract_sections(
             fetch_result.newer_html or "",
@@ -482,7 +456,6 @@ async def _run_pipeline(ticker: str, form_type: str) -> CompareFilingsOutput:
         ),
     )
 
-    # FIX 2: Sanity checks — fail fast on near-empty extractions
     sanity_failure = _check_extraction_sanity(newer_extraction, older_extraction, form_type)
     if sanity_failure:
         return _build_output(
@@ -496,7 +469,6 @@ async def _run_pipeline(ticker: str, form_type: str) -> CompareFilingsOutput:
             elapsed_seconds=time.monotonic() - start,
         )
 
-    # FIX 3: 10-Q reference pointer detection for Risk Factors
     rf_pointer_note = None
     if form_type == "10-Q":
         newer_rf = newer_extraction.risk_factors
@@ -504,15 +476,13 @@ async def _run_pipeline(ticker: str, form_type: str) -> CompareFilingsOutput:
             rf_pointer_note = (
                 "REFERENCE POINTER DETECTED: This 10-Q's Risk Factors section "
                 f"({newer_rf.char_count} chars) incorporates the Annual Report (10-K) "
-                "by reference rather than restating risks in full. "
-                "No meaningful quarter-over-quarter Risk Factor comparison is possible. "
-                "Use form_type='10-K' to compare annual Risk Factor disclosures."
+                "by reference. No meaningful quarter-over-quarter Risk Factor comparison "
+                "is possible. Use form_type='10-K' to compare annual Risk Factor disclosures."
             )
             newer_extraction.risk_factors.coverage_gap_note = rf_pointer_note
             if older_extraction.risk_factors.coverage_gap_note is None:
                 older_extraction.risk_factors.coverage_gap_note = rf_pointer_note
 
-    # Step 3: Delta
     delta_result = compute_delta(
         older_risk=older_extraction.risk_factors.text,
         newer_risk=newer_extraction.risk_factors.text,
@@ -520,7 +490,6 @@ async def _run_pipeline(ticker: str, form_type: str) -> CompareFilingsOutput:
         newer_mda=newer_extraction.mda.text,
     )
 
-    # Step 4: Score
     scoring_result = score_sections(
         newer_risk_text=newer_extraction.risk_factors.text,
         older_risk_text=older_extraction.risk_factors.text,
@@ -530,18 +499,10 @@ async def _run_pipeline(ticker: str, form_type: str) -> CompareFilingsOutput:
         mda_delta=delta_result.mda,
     )
 
-    # Determine final pipeline_success
-    # True even if extraction partially fell back — partial data is better than nothing.
-    # But rf_pointer_note means RF delta is not meaningful — still return data.
-    pipeline_success = fetch_result.pipeline_success
-
-    # If RF is a reference pointer, add a top-level failure reason so user knows
-    failure_reason = rf_pointer_note if rf_pointer_note else None
-
     return _build_output(
         ticker=ticker, form_type=form_type,
-        pipeline_success=pipeline_success,
-        failure_reason=failure_reason,
+        pipeline_success=fetch_result.pipeline_success,
+        failure_reason=rf_pointer_note if rf_pointer_note else None,
         newer_meta=fetch_result.newer,
         older_meta=fetch_result.older,
         newer_extraction=newer_extraction,
@@ -555,43 +516,39 @@ async def _run_pipeline(ticker: str, form_type: str) -> CompareFilingsOutput:
 def _check_extraction_sanity(
     newer_extraction, older_extraction, form_type: str
 ) -> Optional[str]:
-    """
-    FIX 2: Returns a failure reason string if extraction is too thin to be reliable.
-    Returns None if everything looks OK.
-    """
     issues = []
 
     for label, extraction in [("newer", newer_extraction), ("older", older_extraction)]:
-        rf = extraction.risk_factors
+        rf  = extraction.risk_factors
         mda = extraction.mda
 
-        # raw_fallback on either section is always unreliable
         if not mda.extraction_success:
             issues.append(
-                f"{label} MD&A: extraction failed (method={mda.method.value if hasattr(mda.method, 'value') else mda.method}, "
-                f"{mda.char_count} chars). Full document returned as fallback — comparison unreliable."
+                f"{label} MD&A: extraction failed "
+                f"(method={mda.method.value if hasattr(mda.method, 'value') else mda.method}, "
+                f"{mda.char_count} chars) — full document used as fallback."
             )
         elif mda.char_count < MDA_MIN_CHARS:
             issues.append(
                 f"{label} MD&A: only {mda.char_count} chars extracted "
-                f"(minimum {MDA_MIN_CHARS}). Extraction likely captured a fragment, not the full section."
+                f"(minimum {MDA_MIN_CHARS}) — likely a fragment."
             )
 
-        # Risk factors: only enforce size minimum on 10-K (10-Q can legitimately be a pointer)
         if form_type == "10-K":
             if not rf.extraction_success:
                 issues.append(
-                    f"{label} Risk Factors: extraction failed (method={rf.method.value if hasattr(rf.method, 'value') else rf.method}, "
+                    f"{label} Risk Factors: extraction failed "
+                    f"(method={rf.method.value if hasattr(rf.method, 'value') else rf.method}, "
                     f"{rf.char_count} chars)."
                 )
             elif rf.char_count < RISK_FACTORS_MIN_CHARS_10K:
                 issues.append(
                     f"{label} Risk Factors: only {rf.char_count} chars extracted "
-                    f"(minimum {RISK_FACTORS_MIN_CHARS_10K} for 10-K). Likely a partial extraction."
+                    f"(minimum {RISK_FACTORS_MIN_CHARS_10K} for 10-K)."
                 )
 
     if issues:
-        return "Extraction quality below threshold — comparison would be unreliable. " + " | ".join(issues)
+        return "Extraction quality below threshold — comparison unreliable. " + " | ".join(issues)
 
     return None
 
