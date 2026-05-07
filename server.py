@@ -593,10 +593,14 @@ if __name__ == "__main__":
     mcp_app  = mcp.http_app(path="/mcp")
     auth_app = ContextAuthASGI(mcp_app)
 
-    app = Starlette(routes=[
-        Route("/", health),
-        Mount("/", app=auth_app),
-    ])
+    # FIX: pass mcp_app.lifespan so FastMCP task group initializes correctly
+    app = Starlette(
+        lifespan=mcp_app.lifespan,
+        routes=[
+            Route("/", health),
+            Mount("/", app=auth_app),
+        ]
+    )
 
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
