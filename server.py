@@ -483,16 +483,17 @@ async def _run_pipeline(ticker: str, form_type: str) -> CompareFilingsOutput:
             if older_extraction.risk_factors.coverage_gap_note is None:
                 older_extraction.risk_factors.coverage_gap_note = rf_pointer_note
 
-   
-older_rf_text = None if rf_pointer_note else older_extraction.risk_factors.text
-newer_rf_text = None if rf_pointer_note else newer_extraction.risk_factors.text
+    # NEW — skip RF delta when reference pointer detected
+    older_rf_text = None if rf_pointer_note else older_extraction.risk_factors.text
+    newer_rf_text = None if rf_pointer_note else newer_extraction.risk_factors.text
 
-delta_result = compute_delta(
-    older_risk=older_rf_text,
-    newer_risk=newer_rf_text,
-    older_mda=older_extraction.mda.text,
-    newer_mda=newer_extraction.mda.text,
-)
+    delta_result = compute_delta(
+        older_risk=older_rf_text,
+        newer_risk=newer_rf_text,
+        older_mda=older_extraction.mda.text,
+        newer_mda=newer_extraction.mda.text,
+    )
+
     scoring_result = score_sections(
         newer_risk_text=newer_extraction.risk_factors.text,
         older_risk_text=older_extraction.risk_factors.text,
