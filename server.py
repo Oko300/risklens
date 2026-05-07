@@ -1,9 +1,8 @@
 """
 server.py — RiskLens FastMCP server
-Round 3 fix: replace FastMCP ContextProtocolAuth middleware (get_http_headers
-returns empty in on_call_tool) with a raw ASGI middleware that reads the
-authorization header directly from the ASGI scope. This is what Alex confirmed
-is the correct fix path.
+Round 3 fix: ContextAuthASGI only intercepts POST requests.
+GET requests (SSE handshake) pass through untouched — buffering GET
+receive was breaking the SSE connection with a 500 error.
 """
 
 import asyncio
@@ -141,8 +140,7 @@ class CompareFilingsOutput(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# FastMCP application — NO middleware attached here
-# Auth is handled by ContextAuthASGI below at the ASGI level
+# FastMCP application
 # ---------------------------------------------------------------------------
 
 mcp = FastMCP(name="RiskLens")
@@ -492,10 +490,10 @@ def _check_extraction_sanity(
 
 
 # ---------------------------------------------------------------------------
-# FIX 3 ROUND 3: Raw ASGI auth middleware
-# Reads authorization header directly from ASGI scope.
-# get_http_headers() from FastMCP returns empty in on_call_tool — this bypasses it.
-# Protects tools/call only. tools/list remains open for discovery.
+# Raw ASGI auth middleware
+# Only intercepts POST requests (tool calls).
+# GET requests (SSE handshake) pass through untouched — buffering GET
+# receive was breaking the SSE connection with a 500 error.
 # ---------------------------------------------------------------------------
 
 class ContextAuthASGI:
@@ -507,33 +505,39 @@ class ContextAuthASGI:
             await self.app(scope, receive, send)
             return
 
-        # Read auth header directly from ASGI scope — always populated
+        # Only POST requests carry MCP tool calls that need auth.
+        # GET requests are SSE handshakes — pass through untouched.
+        http_method = scope.get("method", b"")
+        if isinstance(http_method, bytes):
+            http_method = http_method.decode()
+        if http_method.upper() != "POST":
+            await self.app(scope, receive, send)
+            return
+
+        # POST only — read auth header directly from ASGI scope
         auth_header = ""
         for name, value in scope.get("headers", []):
             if name.lower() == b"authorization":
                 auth_header = value.decode("utf-8", errors="replace")
                 break
 
-        # Buffer the full request body so we can inspect the MCP method
-        # and then reconstruct it for the downstream FastMCP app
+        # Buffer POST body to inspect MCP method
         body_parts = []
         more_body = True
-
         while more_body:
             message = await receive()
             body_parts.append(message.get("body", b""))
             more_body = message.get("more_body", False)
-
         body = b"".join(body_parts)
 
-        # Check if this MCP method requires auth
+        # Check if method requires auth
         request_id = None
         try:
-            body_json = json.loads(body)
-            method    = body_json.get("method", "")
+            body_json  = json.loads(body)
+            mcp_method = body_json.get("method", "")
             request_id = body_json.get("id")
 
-            if is_protected_mcp_method(method):
+            if is_protected_mcp_method(mcp_method):
                 try:
                     await verify_context_request(authorization_header=auth_header)
                 except ContextError as e:
@@ -557,9 +561,9 @@ class ContextAuthASGI:
                     })
                     return
         except (json.JSONDecodeError, Exception):
-            pass  # Non-JSON or unexpected — pass through
+            pass
 
-        # Reconstruct receive callable with buffered body for downstream app
+        # Reconstruct receive with buffered POST body
         body_served = False
 
         async def reconstructed_receive():
@@ -573,7 +577,7 @@ class ContextAuthASGI:
 
 
 # ---------------------------------------------------------------------------
-# Entry point — FastMCP ASGI app wrapped with ContextAuthASGI
+# Entry point
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
@@ -585,13 +589,10 @@ if __name__ == "__main__":
     async def health(request):
         return JSONResponse({"status": "ok", "service": "RiskLens"})
 
-    # Get FastMCP's ASGI app
-    mcp_app = mcp.http_app(path="/mcp")
-
-    # Wrap with raw ASGI auth middleware
+    # Get FastMCP ASGI app and wrap with auth
+    mcp_app  = mcp.http_app(path="/mcp")
     auth_app = ContextAuthASGI(mcp_app)
 
-    # Combine with health route
     app = Starlette(routes=[
         Route("/", health),
         Mount("/", app=auth_app),
