@@ -483,7 +483,7 @@ async def _run_pipeline(ticker: str, form_type: str) -> CompareFilingsOutput:
             if older_extraction.risk_factors.coverage_gap_note is None:
                 older_extraction.risk_factors.coverage_gap_note = rf_pointer_note
 
-    # NEW — skip RF delta when reference pointer detected
+   
 older_rf_text = None if rf_pointer_note else older_extraction.risk_factors.text
 newer_rf_text = None if rf_pointer_note else newer_extraction.risk_factors.text
 
