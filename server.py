@@ -1,8 +1,9 @@
 """
 server.py — RiskLens FastMCP server
 Round 3 fix: ContextAuthASGI only intercepts POST requests.
-GET requests (SSE handshake) pass through untouched — buffering GET
-receive was breaking the SSE connection with a 500 error.
+GET requests (SSE handshake) pass through untouched.
+Entry point: auth_app runs directly under uvicorn — no Starlette wrapper.
+Starlette Mount("/") was stripping the leading slash from /mcp path (400 error).
 """
 
 import asyncio
@@ -491,9 +492,9 @@ def _check_extraction_sanity(
 
 # ---------------------------------------------------------------------------
 # Raw ASGI auth middleware
-# Only intercepts POST requests (tool calls).
-# GET requests (SSE handshake) pass through untouched — buffering GET
-# receive was breaking the SSE connection with a 500 error.
+# Only intercepts POST requests. GET (SSE) passes through untouched.
+# Reads auth header directly from ASGI scope — get_http_headers() is empty
+# inside FastMCP's on_call_tool hook so we bypass it entirely.
 # ---------------------------------------------------------------------------
 
 class ContextAuthASGI:
@@ -501,12 +502,12 @@ class ContextAuthASGI:
         self.app = app
 
     async def __call__(self, scope, receive, send):
+        # Pass lifespan and websocket events straight through
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
-        # Only POST requests carry MCP tool calls that need auth.
-        # GET requests are SSE handshakes — pass through untouched.
+        # GET requests are SSE handshakes — pass through without touching receive
         http_method = scope.get("method", b"")
         if isinstance(http_method, bytes):
             http_method = http_method.decode()
@@ -514,7 +515,7 @@ class ContextAuthASGI:
             await self.app(scope, receive, send)
             return
 
-        # POST only — read auth header directly from ASGI scope
+        # POST only — read auth header from ASGI scope (always populated)
         auth_header = ""
         for name, value in scope.get("headers", []):
             if name.lower() == b"authorization":
@@ -530,7 +531,7 @@ class ContextAuthASGI:
             more_body = message.get("more_body", False)
         body = b"".join(body_parts)
 
-        # Check if method requires auth
+        # Check if this MCP method requires auth
         request_id = None
         try:
             body_json  = json.loads(body)
@@ -563,7 +564,7 @@ class ContextAuthASGI:
         except (json.JSONDecodeError, Exception):
             pass
 
-        # Reconstruct receive with buffered POST body
+        # Reconstruct receive with buffered POST body for downstream FastMCP
         body_served = False
 
         async def reconstructed_receive():
@@ -578,29 +579,16 @@ class ContextAuthASGI:
 
 # ---------------------------------------------------------------------------
 # Entry point
+# auth_app runs directly under uvicorn — NO Starlette wrapper.
+# Starlette Mount("/") strips the leading slash from /mcp causing 400.
+# Running auth_app directly preserves the full path for FastMCP.
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     import uvicorn
-    from starlette.applications import Starlette
-    from starlette.routing import Route, Mount
-    from starlette.responses import JSONResponse
 
-    async def health(request):
-        return JSONResponse({"status": "ok", "service": "RiskLens"})
-
-    # Get FastMCP ASGI app and wrap with auth
     mcp_app  = mcp.http_app(path="/mcp")
     auth_app = ContextAuthASGI(mcp_app)
 
-    # FIX: pass mcp_app.lifespan so FastMCP task group initializes correctly
-    app = Starlette(
-        lifespan=mcp_app.lifespan,
-        routes=[
-            Route("/", health),
-            Mount("/", app=auth_app),
-        ]
-    )
-
     port = int(os.environ.get("PORT", 8080))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(auth_app, host="0.0.0.0", port=port)
