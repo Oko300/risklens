@@ -18,10 +18,6 @@ KEY FIXES:
 7. pattern_min_chars per spec — pattern_match rejects fragments below section threshold
 8. 10-Q Risk Factors reference pointer detection — flags incorporated-by-reference
    sections instead of running a false delta comparison
-9. TOC strategy enhanced for large filers (JPM, BAC, WFC etc.) whose TOC links use
-   the section display name only ("Management's Discussion and Analysis") without the
-   "Item N" prefix — adds a second pass that matches by display-name keywords and
-   also handles <a name="..."> anchor targets more robustly
 """
 
 import json
@@ -528,62 +524,20 @@ def _try_ixbrl_div_strategy(soup: BeautifulSoup, spec: dict) -> Optional[str]:
 
 # ---------------------------------------------------------------------------
 # Strategy 4: TOC link traversal
-# FIX 9: Two-pass matching handles large filers (JPM, BAC, WFC, GS) whose TOC
-# links use the section display name only — e.g. "Management's Discussion and
-# Analysis" — without the "Item 2" prefix that the start_patterns require.
-# Pass 1 keeps the original exact-pattern match (works for most filers).
-# Pass 2 matches by display-name keywords (catches large bank filers).
-# Anchor target resolution now also checks <a name="..."> tags explicitly,
-# which JPM-style filings use instead of id= attributes on content elements.
 # ---------------------------------------------------------------------------
 
 def _try_toc_strategy(soup: BeautifulSoup, spec: dict) -> Optional[str]:
-    start_re = re.compile("|".join(spec["start_patterns"]), re.IGNORECASE)
-
-    # Build keyword list from the section display name for Pass 2
-    # e.g. "Management's Discussion and Analysis" → ["management", "discussion", "analysis"]
-    display_keywords = [
-        w for w in re.sub(r"['\u2019&]", "", spec["display"].lower()).split()
-        if len(w) > 4
-    ]
-
+    start_re  = re.compile("|".join(spec["start_patterns"]), re.IGNORECASE)
     target_id = None
-
-    # Pass 1 — exact Item-label pattern match on TOC link text (original logic,
-    # works for NVDA / AAPL / TSLA / FORD / PLTR / COIN and most EDGAR filers)
     for a in soup.find_all("a", href=True):
-        href = a.get("href", "")
-        if href.startswith("#") and start_re.search(_norm(a.get_text())):
-            target_id = href[1:]
+        if a["href"].startswith("#") and start_re.search(_norm(a.get_text())):
+            target_id = a["href"][1:]
             break
-
-    # Pass 2 — display-name keyword match on TOC link text (FIX 9: catches large
-    # bank filers like JPM whose TOC links omit the "Item N" prefix entirely)
-    if not target_id:
-        for a in soup.find_all("a", href=True):
-            href = a.get("href", "")
-            if not href.startswith("#"):
-                continue
-            link_text = _norm(a.get_text())
-            matched_keywords = sum(1 for kw in display_keywords if kw in link_text)
-            if matched_keywords >= 2:
-                target_id = href[1:]
-                break
-
     if not target_id:
         return None
-
-    # Resolve the anchor target — check id=, name= on any tag, and <a name="...">
-    # explicitly. JPM-style filings anchor with <a name="..."> inside the section
-    # heading rather than id= on a div/heading element.
-    target = (
-        soup.find(id=target_id)
-        or soup.find(attrs={"name": target_id})
-        or soup.find("a", attrs={"name": target_id})
-    )
+    target = soup.find(id=target_id) or soup.find(attrs={"name": target_id})
     if not target:
         return None
-
     text = _collect_forward(target, spec["next_items"])
     return text if text and len(text) >= MIN_SECTION_CHARS else None
 
