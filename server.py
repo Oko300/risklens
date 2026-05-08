@@ -1,48 +1,48 @@
 """
 server.py — RiskLens FastMCP server
 
-Auth architecture (why this works):
+Auth architecture — verified against official ctxprotocol Python SDK docs:
 ─────────────────────────────────────────────────────────────────────────────
-create_context_middleware() is a FastAPI DEPENDENCY FACTORY, not ASGI middleware.
-Its source returns:
-    async def dependency(request) -> dict | None
-It reads request.json(), checks the MCP method name, and calls
-verify_context_request() only for tools/call. It returns None for open methods
-(initialize, tools/list) — no auth required for discovery.
+The ctxprotocol Python SDK docs (Option 1 — FastMCP Recommended) show:
 
-Correct usage pattern (from ctxprotocol docs):
-    verify_context = create_context_middleware()
+    from fastmcp.server.middleware import Middleware, MiddlewareContext
+    from fastmcp.server.dependencies import get_http_headers
+    from ctxprotocol import verify_context_request, ContextError
 
-    @app.post("/mcp")
-    async def handle_mcp(request: Request, _=Depends(verify_context)):
-        ...
+    class ContextProtocolAuth(Middleware):
+        async def on_call_tool(self, context: MiddlewareContext, call_next):
+            headers = get_http_headers()
+            try:
+                await verify_context_request(
+                    authorization_header=headers.get("authorization", "")
+                )
+            except ContextError as e:
+                raise ToolError(f"Unauthorized: {e.message}")
+            return await call_next(context)
 
-Integration with FastMCP's StarletteWithLifespan:
-- mcp.http_app(path="/mcp") returns a StarletteWithLifespan object
-- We mount it on FastAPI at "/" so it handles ALL routes including lifespan
-- FastAPI intercepts POST /mcp FIRST (more specific route wins)
-- GET /mcp and all other methods fall through to the mounted Starlette app
-- POST /mcp runs Depends(verify_context) then forwards the raw request into
-  the Starlette app via its ASGI interface
+    mcp.add_middleware(ContextProtocolAuth())
 
-Route map:
-  GET  /mcp  → mounted FastMCP Starlette app (discovery, SSE) — no auth
-  POST /mcp  → FastAPI route → Depends(verify_context) → forward to FastMCP
-  lifespan   → FastMCP Starlette app handles it via _lifespan context manager
+This is the OFFICIAL pattern. The reason Round 2 failed was NOT the pattern —
+it was that get_http_headers() requires FastMCP to run in HTTP transport mode
+(transport="streamable-http") so that HTTP request context is available inside
+the middleware hook. Running with the wrong transport or wrong entry point
+causes get_http_headers() to return an empty dict.
 
-What was WRONG before:
-    auth_app = create_context_middleware()(mcp_app)
-    # create_context_middleware() returns the dependency coroutine function.
-    # Calling it with (mcp_app) invokes it as a coroutine, returning a coroutine
-    # object — not a callable ASGI app. uvicorn then crashes or every tools/call
-    # sees an empty Authorization header and returns 401.
+The fix applied here:
+1. Keep the official FastMCP middleware pattern exactly as docs show
+2. Run with mcp.run(transport="streamable-http") — this is what makes
+   get_http_headers() work correctly inside on_call_tool
+3. Remove the FastAPI wrapper entirely — it was causing the 500 errors and
+   the GET /mcp 400/406 failures seen in Railway logs
+4. Single entry point — uvicorn is NOT used directly, FastMCP handles it
+
+Railway start command must be:  python server.py
 ─────────────────────────────────────────────────────────────────────────────
 """
 
 import asyncio
 import os
 import time
-from contextlib import asynccontextmanager
 from typing import Literal, Optional
 
 from dotenv import load_dotenv
@@ -50,11 +50,11 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-from fastapi import FastAPI, Request
-from fastapi.responses import Response
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
-from ctxprotocol import create_context_middleware
+from fastmcp.server.middleware import Middleware, MiddlewareContext
+from fastmcp.server.dependencies import get_http_headers
+from ctxprotocol import verify_context_request, ContextError
 
 from fetcher import fetch_two_filings
 from extractor import extract_sections_cached as extract_sections
@@ -180,6 +180,32 @@ class CompareFilingsOutput(BaseModel):
 # ---------------------------------------------------------------------------
 
 mcp = FastMCP(name="RiskLens")
+
+# ---------------------------------------------------------------------------
+# Auth middleware — official ctxprotocol FastMCP pattern
+# Source: https://docs.ctxprotocol.com/sdk/python-reference
+# Option 1: FastMCP (Recommended)
+# ---------------------------------------------------------------------------
+
+class ContextProtocolAuth(Middleware):
+    """
+    Verify Context Protocol JWT on tool calls only.
+    Open methods (initialize, tools/list) pass through without auth.
+    Only tools/call requires a valid JWT from the Context platform.
+    """
+
+    async def on_call_tool(self, context: MiddlewareContext, call_next):
+        headers = get_http_headers()
+        try:
+            await verify_context_request(
+                authorization_header=headers.get("authorization", "")
+            )
+        except ContextError as e:
+            raise ToolError(f"Unauthorized: {e.message}")
+        return await call_next(context)
+
+
+mcp.add_middleware(ContextProtocolAuth())
 
 TOOL_TIMEOUT = 55
 
@@ -526,117 +552,19 @@ def _check_extraction_sanity(
 
 
 # ---------------------------------------------------------------------------
-# ASGI app assembly
-#
-# Architecture:
-#   FastAPI (outer)
-#     POST /mcp  ← FastAPI route — Depends(_verify_context) enforces auth
-#     *          ← mounted FastMCP StarletteWithLifespan (GET /mcp, lifespan)
-#
-# Why mount at "/" not "/mcp":
-#   mcp.http_app(path="/mcp") already bakes "/mcp" into FastMCP's router.
-#   Mounting at "/" means FastMCP sees the full original path and routes
-#   correctly. Mounting at "/mcp" would strip the prefix, making FastMCP
-#   see "/" instead of "/mcp" — broken.
-#
-# Route resolution:
-#   FastAPI checks its own defined routes first.
-#   POST /mcp → matched by @api.post("/mcp") → auth runs → forwarded to FastMCP.
-#   GET  /mcp → no FastAPI route for GET → falls through to mounted Starlette app.
-#   Lifespan  → handled by _lifespan context manager below.
-# ---------------------------------------------------------------------------
-
-# Build FastMCP Starlette app — "/mcp" path baked in
-_mcp_asgi = mcp.http_app(path="/mcp")
-
-# Build the auth dependency (called once per POST /mcp request)
-_verify_context = create_context_middleware()
-
-
-@asynccontextmanager
-async def _lifespan(app: FastAPI):
-    """
-    Wire FastMCP's lifespan (task group startup/shutdown) into FastAPI.
-    Without this, FastMCP's internal task group never starts and tools/call hangs.
-    """
-    async with _mcp_asgi.router.lifespan_context(app):
-        yield
-
-
-# Outer FastAPI app with lifespan forwarded to FastMCP
-api = FastAPI(lifespan=_lifespan)
-
-
-@api.post("/mcp", response_model=None)
-async def mcp_post(request: Request):
-    """
-    POST /mcp — authenticated entry point for all MCP method calls.
-
-    We manually run the auth dependency here instead of using Depends()
-    because FastAPI's Depends() triggers body validation (422) before our
-    code runs when there is no declared body schema.
-
-    Auth behaviour (mirrors create_context_middleware dependency exactly):
-      - tools/call  → verifies Authorization header JWT, raises 401 if invalid
-      - initialize / tools/list → passes through without auth
-      - After auth passes, body is replayed into FastMCP via ASGI.
-
-    Body caching: we read the full body once into memory so it can be
-    replayed into FastMCP's receive channel after the auth check consumes it.
-    """
-    # Read and cache the raw body so it survives both the auth check and
-    # the subsequent ASGI forward (request.receive() can only be called once)
-    raw_body = await request.body()
-
-    # Run auth check manually — same logic as _verify_context dependency
-    await _verify_context(request)
-
-    # Replay cached body into a new receive callable for FastMCP
-    body_consumed = False
-
-    async def replay_receive():
-        nonlocal body_consumed
-        if not body_consumed:
-            body_consumed = True
-            return {"type": "http.request", "body": raw_body, "more_body": False}
-        # After body sent, block forever (normal ASGI disconnect pattern)
-        return {"type": "http.disconnect"}
-
-    response_started: dict = {}
-    response_body: list[bytes] = []
-
-    async def send(message: dict) -> None:
-        if message["type"] == "http.response.start":
-            response_started["status"] = message["status"]
-            response_started["headers"] = message.get("headers", [])
-        elif message["type"] == "http.response.body":
-            response_body.append(message.get("body", b""))
-
-    # Forward into FastMCP with replayed body
-    await _mcp_asgi(request.scope, replay_receive, send)
-
-    status_code = response_started.get("status", 200)
-    headers = {
-        k.decode(): v.decode()
-        for k, v in response_started.get("headers", [])
-    }
-    body = b"".join(response_body)
-
-    return Response(content=body, status_code=status_code, headers=headers)
-
-
-# Mount FastMCP at "/" AFTER defining the POST route above.
-# FastAPI evaluates its own routes before the mounted app, so POST /mcp
-# is intercepted correctly. Everything else (GET /mcp, SSE) hits FastMCP.
-api.mount("/", _mcp_asgi)
-
-
-# ---------------------------------------------------------------------------
 # Entry point
+#
+# transport="streamable-http" is REQUIRED for get_http_headers() to work
+# inside the ContextProtocolAuth middleware. This is what gives FastMCP
+# access to the raw HTTP request context including the Authorization header.
+#
+# Railway start command: python server.py
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    import uvicorn
-
     port = int(os.environ.get("PORT", 8080))
-    uvicorn.run(api, host="0.0.0.0", port=port)
+    mcp.run(
+        transport="streamable-http",
+        host="0.0.0.0",
+        port=port,
+    )
