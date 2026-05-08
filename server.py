@@ -50,7 +50,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import Response
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
@@ -567,22 +567,41 @@ async def _lifespan(app: FastAPI):
 api = FastAPI(lifespan=_lifespan)
 
 
-@api.post("/mcp")
-async def mcp_post(
-    request: Request,
-    _context: dict | None = Depends(_verify_context),
-):
+@api.post("/mcp", response_model=None)
+async def mcp_post(request: Request):
     """
     POST /mcp — authenticated entry point for all MCP method calls.
 
-    Depends(_verify_context) behaviour:
-      - Parses request body to read the JSON-RPC method name
-      - tools/call  → calls verify_context_request() with Authorization header
-                       raises HTTP 401 if missing or invalid JWT
-      - initialize / tools/list → returns None, no auth check
-      - After dependency passes, we forward the full request into FastMCP
-        via its ASGI callable so it processes the JSON-RPC normally.
+    We manually run the auth dependency here instead of using Depends()
+    because FastAPI's Depends() triggers body validation (422) before our
+    code runs when there is no declared body schema.
+
+    Auth behaviour (mirrors create_context_middleware dependency exactly):
+      - tools/call  → verifies Authorization header JWT, raises 401 if invalid
+      - initialize / tools/list → passes through without auth
+      - After auth passes, body is replayed into FastMCP via ASGI.
+
+    Body caching: we read the full body once into memory so it can be
+    replayed into FastMCP's receive channel after the auth check consumes it.
     """
+    # Read and cache the raw body so it survives both the auth check and
+    # the subsequent ASGI forward (request.receive() can only be called once)
+    raw_body = await request.body()
+
+    # Run auth check manually — same logic as _verify_context dependency
+    await _verify_context(request)
+
+    # Replay cached body into a new receive callable for FastMCP
+    body_consumed = False
+
+    async def replay_receive():
+        nonlocal body_consumed
+        if not body_consumed:
+            body_consumed = True
+            return {"type": "http.request", "body": raw_body, "more_body": False}
+        # After body sent, block forever (normal ASGI disconnect pattern)
+        return {"type": "http.disconnect"}
+
     response_started: dict = {}
     response_body: list[bytes] = []
 
@@ -593,8 +612,8 @@ async def mcp_post(
         elif message["type"] == "http.response.body":
             response_body.append(message.get("body", b""))
 
-    # Forward the original request scope/receive into FastMCP's ASGI interface
-    await _mcp_asgi(request.scope, request.receive, send)
+    # Forward into FastMCP with replayed body
+    await _mcp_asgi(request.scope, replay_receive, send)
 
     status_code = response_started.get("status", 200)
     headers = {
